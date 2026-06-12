@@ -5,8 +5,10 @@
 ## 功能
 
 - 图像预处理：灰度化、CLAHE 对比度增强、锐化、去噪、二值化、放大、组合增强。
-- OCR：调用 PaddleOCR 识别中文社媒图片文字。
+- OCR：调用 PaddleOCR 识别中文社媒图片和视频抽帧文字。
 - 自动择优：对每个预处理版本分别 OCR，根据平均置信度、文本长度、文本块数量、低置信度比例和文本区域占比综合打分。
+- 视频文本提取：对微博视频按时间间隔抽帧，并可分别识别整帧、顶部、中部、底部区域，适配字幕、标题贴片和画面文字。
+- 真实爬取媒体处理：支持递归读取 `数据爬取/outputs/.../media` 中的图片、`.mp4` 视频和可识别为视频的 `.bin` 文件。
 - 置信度评估：输出平均置信度、最低置信度、低置信度比例、是否需要人工复核。
 - JSON 输出：详细 JSON 用于调试和画框，精简 LLM JSON 用于交给大模型汇总。
 - 可视化：在图片上画出 OCR 文本框和置信度。
@@ -25,6 +27,36 @@ python run_ocr.py --input-dir data/raw --output-dir outputs --platform weibo
 ```powershell
 python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --output-dir outputs --platform weibo
 ```
+
+单个视频抽帧 OCR：
+
+```powershell
+python run_ocr.py `
+  --video "..\数据爬取\outputs\20260612_141245\media\02_老外也疑惑中国为什么不参加世界杯\videos\video_3a2c8bc4eeba.mp4" `
+  --output-dir outputs_video_test `
+  --platform weibo_hotsearch `
+  --variant-set minimal `
+  --max-video-frames 4 `
+  --frame-interval 5 `
+  --frame-regions full,bottom
+```
+
+处理微博爬取结果中的图片和视频：
+
+```powershell
+python run_ocr.py `
+  --media-dir "..\数据爬取\outputs\20260612_141245\media" `
+  --output-dir outputs_weibo_media `
+  --platform weibo_hotsearch `
+  --variant-set minimal `
+  --image-limit 20 `
+  --video-limit 10 `
+  --max-video-frames 4 `
+  --frame-interval 5 `
+  --frame-regions full,bottom
+```
+
+说明：`.bin` 文件会先做文件头判断。HTML 播放页不会当作视频处理；只有可被识别为 MP4/WebM/AVI 等视频容器的数据才会进入抽帧 OCR。
 
 抓取真实网页截图数据：
 
@@ -53,8 +85,12 @@ GPU 需要安装 CUDA 版 PaddlePaddle。当前项目代码已支持 `--device g
 - `outputs/llm_json/*.json`：面向大模型的精简 OCR 结果，不包含坐标和多版本细节。
 - `outputs/visualizations/*.png`：最佳版本 OCR 框可视化。
 - `outputs/variants/<image_id>/*.png`：不同预处理版本图片。
+- `outputs/video_frames/<video_id>/*.jpg`：视频抽取的原始帧。
+- `outputs/frame_ocr/`：每个视频帧/区域的 OCR 详细 JSON、LLM JSON 和可视化。
 - `outputs/reports/batch_summary.json`：批处理汇总。
 - `outputs/reports/llm_batch_summary.json`：面向大模型的批处理精简汇总。
+- `outputs/reports/media_batch_summary.json`：混合图片/视频媒体处理汇总。
+- `outputs/reports/llm_media_batch_summary.json`：面向大模型的混合媒体精简汇总。
 
 说明：`outputs/json` 会保留文本框坐标、区域类型和所有预处理版本结果，文件会比较大，主要用于调试、可视化和课程报告证明。给大模型使用时优先读取 `outputs/llm_json` 或 `outputs/reports/llm_batch_summary.json`。
 
