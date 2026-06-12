@@ -5,7 +5,8 @@ import numpy as np
 from src.social_ocr.postprocess import score_result
 from src.social_ocr.ocr_engine import PaddleOcrEngine
 from src.social_ocr.preprocess import generate_variants
-from src.social_ocr.video import extract_video_frames, is_probable_video_file
+from src.social_ocr.pipeline import _dedupe_text_lines
+from src.social_ocr.video import build_sampling_plan, extract_video_frames, is_probable_video_file
 
 
 def test_generate_variants_non_empty() -> None:
@@ -41,7 +42,7 @@ def test_video_frame_extraction(tmp_path) -> None:
         writer.write(frame)
     writer.release()
 
-    frames = extract_video_frames(video_path, interval_seconds=1, max_frames=3)
+    frames = extract_video_frames(video_path, interval_seconds=2, max_frames=3)
 
     assert is_probable_video_file(video_path)
     assert 1 <= len(frames) <= 3
@@ -53,3 +54,33 @@ def test_html_bin_is_not_video(tmp_path) -> None:
     html_path.write_bytes(b"<!doctype html><html></html>")
 
     assert not is_probable_video_file(html_path)
+
+
+def test_default_sampling_plan_uses_two_seconds_under_64s() -> None:
+    plan = build_sampling_plan(50.0, interval_seconds=None, max_frames=32)
+
+    assert plan.interval_seconds == 2.0
+    assert len(plan.timestamps) == 26
+    assert plan.timestamps[:4] == [0.0, 2.0, 4.0, 6.0]
+
+
+def test_default_sampling_plan_spreads_long_video_over_32_frames() -> None:
+    plan = build_sampling_plan(128.0, interval_seconds=None, max_frames=32)
+
+    assert plan.interval_seconds == 4.0
+    assert len(plan.timestamps) == 32
+    assert plan.timestamps[0] == 0.0
+    assert plan.timestamps[-1] == 124.0
+
+
+def test_video_llm_text_dedupes_neighbor_repeats() -> None:
+    lines = _dedupe_text_lines(
+        [
+            "中国队为什么没进世界杯？\n足球",
+            "中国队为什么没进世界杯？\n足球",
+            "中国队为什么没进世界杯？",
+            "佛得角\n库拉索",
+        ]
+    )
+
+    assert lines == ["中国队为什么没进世界杯？", "足球", "佛得角", "库拉索"]

@@ -36,25 +36,37 @@ python run_ocr.py `
   --output-dir outputs_video_test `
   --platform weibo_hotsearch `
   --variant-set minimal `
-  --max-video-frames 4 `
-  --frame-interval 5 `
   --frame-regions full,bottom
 ```
 
 处理微博爬取结果中的图片和视频：
 
 ```powershell
-python run_ocr.py `
-  --media-dir "..\数据爬取\outputs\20260612_141245\media" `
-  --output-dir outputs_weibo_media `
-  --platform weibo_hotsearch `
-  --variant-set minimal `
-  --image-limit 20 `
-  --video-limit 10 `
-  --max-video-frames 4 `
-  --frame-interval 5 `
-  --frame-regions full,bottom
+python scripts/process_latest_crawl_media.py
 ```
+
+该脚本会自动查找 `..\数据爬取\outputs` 中最新的爬取结果目录，并处理其中 `media/` 下的所有图片和视频。输出默认写入：
+
+```text
+outputs_from_crawl/<爬取结果目录名>/
+```
+
+快速试跑：
+
+```powershell
+python scripts/process_latest_crawl_media.py --dry-run
+python scripts/process_latest_crawl_media.py --image-limit 5 --video-limit 2
+```
+
+也可以手动指定某次爬取结果：
+
+```powershell
+python scripts/process_latest_crawl_media.py `
+  --crawl-run-dir "..\数据爬取\outputs\20260612_141245" `
+  --output-dir outputs_weibo_media
+```
+
+默认抽帧规则：视频不足 64 秒时每 2 秒抽一帧；视频达到 64 秒及以上时使用 `视频时长 / 32` 作为间隔，最多抽 32 帧。可以用 `--frame-interval` 和 `--max-video-frames` 手动覆盖。最终给大模型的 `ocr_text_compact` 会对相邻帧重复文本自动去重。
 
 说明：`.bin` 文件会先做文件头判断。HTML 播放页不会当作视频处理；只有可被识别为 MP4/WebM/AVI 等视频容器的数据才会进入抽帧 OCR。
 

@@ -13,6 +13,7 @@ from .postprocess import choose_best_result, score_result
 from .preprocess import blur_score, generate_variants, read_image, text_area_ratio, write_image
 from .video import (
     VIDEO_LIKE_SUFFIXES,
+    build_sampling_plan,
     crop_frame_regions,
     extract_video_frames,
     get_video_metadata,
@@ -172,8 +173,8 @@ def process_video(
     output_dir: str | Path = "outputs",
     platform: str = "unknown",
     engine: PaddleOcrEngine | None = None,
-    frame_interval_seconds: float = 5.0,
-    max_frames: int = 8,
+    frame_interval_seconds: float | None = None,
+    max_frames: int = 32,
     frame_regions: tuple[str, ...] = ("full", "bottom"),
     save_frames: bool = True,
     variant_names: set[str] | None = None,
@@ -184,12 +185,17 @@ def process_video(
     engine = engine or PaddleOcrEngine(device=device)
     video_id = video_path.stem
 
+    metadata = get_video_metadata(video_path)
+    sampling_plan = build_sampling_plan(
+        float(metadata.get("duration_seconds", 0.0) or 0.0),
+        frame_interval_seconds,
+        max_frames,
+    )
     frames = extract_video_frames(
         video_path,
-        interval_seconds=frame_interval_seconds,
+        interval_seconds=sampling_plan.interval_seconds,
         max_frames=max_frames,
     )
-    metadata = get_video_metadata(video_path)
     saved_frame_paths = (
         save_video_frames(frames, output_dir / "video_frames" / video_id, video_id)
         if save_frames
@@ -246,9 +252,11 @@ def process_video(
         "processed_at": datetime.now().isoformat(timespec="seconds"),
         "video_metadata": metadata,
         "frame_sampling": {
-            "frame_interval_seconds": frame_interval_seconds,
+            "frame_interval_seconds": sampling_plan.interval_seconds,
             "max_frames": max_frames,
             "sampled_frame_count": len(frames),
+            "sampled_timestamps": [frame.timestamp_seconds for frame in frames],
+            "planned_timestamps": sampling_plan.timestamps,
             "frame_regions": list(frame_regions),
             "saved_frame_paths": saved_frame_paths,
         },
@@ -321,8 +329,8 @@ def process_media_batch(
     recursive: bool = True,
     variant_names: set[str] | None = None,
     device: str = "cpu",
-    frame_interval_seconds: float = 5.0,
-    max_video_frames: int = 8,
+    frame_interval_seconds: float | None = None,
+    max_video_frames: int = 32,
     frame_regions: tuple[str, ...] = ("full", "bottom"),
 ) -> dict[str, Any]:
     input_dir = Path(input_dir)
@@ -442,18 +450,34 @@ def _compact_text(text: str) -> str:
 
 def _dedupe_text_lines(texts: Iterable[str]) -> list[str]:
     lines: list[str] = []
-    seen: set[str] = set()
+    seen_keys: set[str] = set()
     for text in texts:
         for line in str(text or "").splitlines():
             line = line.strip()
             if len(line) < 2:
                 continue
-            key = re.sub(r"\W+", "", line).lower()
-            if not key or key in seen:
+            key = _text_dedupe_key(line)
+            if not key or key in seen_keys or _is_near_duplicate_key(key, seen_keys):
                 continue
-            seen.add(key)
+            seen_keys.add(key)
             lines.append(line)
     return lines
+
+
+def _text_dedupe_key(text: str) -> str:
+    return re.sub(r"[\W_]+", "", text).lower()
+
+
+def _is_near_duplicate_key(key: str, seen_keys: set[str]) -> bool:
+    if len(key) < 6:
+        return False
+    for old_key in seen_keys:
+        if len(old_key) < 6:
+            continue
+        shorter, longer = sorted((key, old_key), key=len)
+        if shorter in longer and len(shorter) / len(longer) >= 0.72:
+            return True
+    return False
 
 
 def _summarize_frame_quality(frame_results: list[dict[str, Any]]) -> dict[str, Any]:

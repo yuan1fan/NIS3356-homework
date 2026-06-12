@@ -28,6 +28,14 @@ class FrameRegion:
     crop_box: tuple[int, int, int, int]
 
 
+@dataclass(frozen=True)
+class SamplingPlan:
+    duration_seconds: float
+    interval_seconds: float
+    max_frames: int
+    timestamps: list[float]
+
+
 def is_probable_video_file(path: str | Path) -> bool:
     path = Path(path)
     suffix = path.suffix.lower()
@@ -63,8 +71,8 @@ def get_video_metadata(path: str | Path) -> dict[str, float | int]:
 
 def extract_video_frames(
     path: str | Path,
-    interval_seconds: float = 5.0,
-    max_frames: int = 8,
+    interval_seconds: float | None = None,
+    max_frames: int = 32,
 ) -> list[VideoFrame]:
     path = Path(path)
     if not is_probable_video_file(path):
@@ -79,7 +87,7 @@ def extract_video_frames(
         fps = float(capture.get(cv2.CAP_PROP_FPS) or 0.0)
         frame_count = int(capture.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
         duration = frame_count / fps if fps > 0 and frame_count > 0 else 0.0
-        timestamps = _sample_timestamps(duration, interval_seconds, max_frames)
+        timestamps = build_sampling_plan(duration, interval_seconds, max_frames).timestamps
         frames: list[VideoFrame] = []
         for timestamp in timestamps:
             capture.set(cv2.CAP_PROP_POS_MSEC, timestamp * 1000)
@@ -97,6 +105,25 @@ def extract_video_frames(
         return frames
     finally:
         capture.release()
+
+
+def build_sampling_plan(
+    duration_seconds: float,
+    interval_seconds: float | None = None,
+    max_frames: int = 32,
+) -> SamplingPlan:
+    max_frames = max(1, int(max_frames))
+    duration_seconds = max(0.0, float(duration_seconds or 0.0))
+    if interval_seconds is None:
+        interval_seconds = _auto_interval(duration_seconds, max_frames)
+    interval_seconds = max(2.0, float(interval_seconds))
+    timestamps = _sample_timestamps(duration_seconds, interval_seconds, max_frames)
+    return SamplingPlan(
+        duration_seconds=round(duration_seconds, 3),
+        interval_seconds=round(interval_seconds, 3),
+        max_frames=max_frames,
+        timestamps=timestamps,
+    )
 
 
 def crop_frame_regions(image: np.ndarray, region_names: Iterable[str]) -> list[FrameRegion]:
@@ -136,7 +163,7 @@ def _sample_timestamps(duration_seconds: float, interval_seconds: float, max_fra
     if duration_seconds <= 0:
         return [0.0]
 
-    interval_seconds = max(0.5, float(interval_seconds))
+    interval_seconds = max(2.0, float(interval_seconds))
     timestamps = [0.0]
     current = interval_seconds
     while current < duration_seconds and len(timestamps) < max_frames:
@@ -148,3 +175,11 @@ def _sample_timestamps(duration_seconds: float, interval_seconds: float, max_fra
         if all(abs(last - item) > 0.5 for item in timestamps):
             timestamps.append(round(last, 3))
     return timestamps[:max_frames]
+
+
+def _auto_interval(duration_seconds: float, max_frames: int) -> float:
+    if duration_seconds <= 0:
+        return 2.0
+    if duration_seconds < 64:
+        return 2.0
+    return max(2.0, duration_seconds / max(1, max_frames))

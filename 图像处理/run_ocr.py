@@ -26,8 +26,13 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="Maximum number of images to process in batch mode.")
     parser.add_argument("--image-limit", type=int, help="Maximum number of images in media-dir mode.")
     parser.add_argument("--video-limit", type=int, help="Maximum number of videos in media-dir mode.")
-    parser.add_argument("--frame-interval", type=float, default=5.0, help="Seconds between sampled video frames.")
-    parser.add_argument("--max-video-frames", type=int, default=8, help="Maximum frames sampled per video.")
+    parser.add_argument(
+        "--frame-interval",
+        type=float,
+        default=None,
+        help="Seconds between sampled video frames. Default: auto, 2s for videos under 64s, otherwise duration/32.",
+    )
+    parser.add_argument("--max-video-frames", type=int, default=32, help="Maximum frames sampled per video.")
     parser.add_argument(
         "--frame-regions",
         default="full,bottom",
