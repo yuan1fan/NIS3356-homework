@@ -5,6 +5,8 @@ __pycache__/
 .venv-*/
 .paddlex/
 *.log
+.weibo_cookie.txt
+**/.weibo_cookie.txt
 
 # Local bulky/generated OCR outputs. Keep curated sample outputs committed explicitly.
 图像处理/outputs*/
@@ -20,3 +22,5 @@ __pycache__/
 !图像处理/outputs_real_minimal/visualizations/
 !图像处理/outputs_real_minimal/visualizations/**
 
+# Weibo crawler runtime outputs. They may contain account-derived data and bulky media.
+数据爬取/outputs*/
