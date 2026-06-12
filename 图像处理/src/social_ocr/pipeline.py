@@ -23,7 +23,7 @@ from .video import (
 from .visualize import draw_text_blocks
 
 
-IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 
@@ -150,7 +150,6 @@ def process_image_array(
         },
         "variant_results": clean_variant_records,
         "visualization_path": str(visualization_path),
-        "for_llm_summary": _make_llm_summary(platform, best),
     }
     if extra_metadata:
         result["metadata"] = extra_metadata
@@ -287,7 +286,6 @@ def process_video(
         "ocr_text": "\n".join(text_lines),
         "frame_results": frame_results,
         "quality_assessment": quality,
-        "for_llm_summary": _make_video_llm_summary(platform, video_id, text_lines, quality),
     }
 
     json_path = output_dir / "json" / f"{video_id}.json"
@@ -373,15 +371,32 @@ def process_media_batch(
 
     engine = PaddleOcrEngine(device=device)
     image_results = []
+    skipped_images = []
     for index, path in enumerate(image_paths, start=1):
-        result = process_image(
-            path,
-            output_dir=output_dir,
-            platform=platform,
-            engine=engine,
-            variant_names=variant_names,
-            device=device,
-        )
+        try:
+            result = process_image(
+                path,
+                output_dir=output_dir,
+                platform=platform,
+                engine=engine,
+                variant_names=variant_names,
+                device=device,
+            )
+        except Exception as exc:  # noqa: BLE001
+            skipped_images.append({"path": str(path), "reason": str(exc)})
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "advance",
+                        "kind": "image_skipped",
+                        "path": str(path),
+                        "media_id": path.stem,
+                        "index": index,
+                        "total": len(image_paths),
+                        "text_chars": 0,
+                    }
+                )
+            continue
         image_results.append(result)
         if progress_callback:
             progress_callback(
@@ -424,9 +439,11 @@ def process_media_batch(
         "input_dir": str(input_dir),
         "processed_at": datetime.now().isoformat(timespec="seconds"),
         "image_count": len(image_results),
+        "skipped_image_count": len(skipped_images),
         "video_count": len(video_results),
         "skipped_video_count": len(skipped_videos),
         "image_results": image_results,
+        "skipped_images": skipped_images,
         "video_results": video_results,
         "skipped_videos": skipped_videos,
     }
@@ -450,7 +467,6 @@ def make_llm_result(result: dict[str, Any]) -> dict[str, Any]:
         "processed_at": result.get("processed_at"),
         "ocr_text": result.get("ocr_text", ""),
         "ocr_text_compact": _compact_text(result.get("ocr_text", "")),
-        "for_llm_summary": result.get("for_llm_summary", ""),
         "ocr_quality": {
             "avg_confidence": quality.get("avg_confidence"),
             "needs_review": quality.get("needs_review"),
@@ -468,17 +484,6 @@ def make_llm_result(result: dict[str, Any]) -> dict[str, Any]:
             "sampled_frame_count": result.get("frame_sampling", {}).get("sampled_frame_count"),
         }
     return data
-
-
-def _make_llm_summary(platform: str, best: dict[str, Any]) -> str:
-    text = best.get("full_text", "").replace("\n", "；")
-    if len(text) > 180:
-        text = text[:177] + "..."
-    return (
-        f"平台：{platform}。最佳OCR预处理版本：{best['variant_name']}。"
-        f"平均置信度：{best['avg_confidence']:.2f}。"
-        f"识别到的主要文字：{text}"
-    )
 
 
 def _compact_text(text: str) -> str:
@@ -547,18 +552,3 @@ def _summarize_frame_quality(frame_results: list[dict[str, Any]]) -> dict[str, A
         "text_block_count": block_count,
     }
 
-
-def _make_video_llm_summary(
-    platform: str,
-    video_id: str,
-    text_lines: list[str],
-    quality: dict[str, Any],
-) -> str:
-    text = "；".join(text_lines)
-    if len(text) > 220:
-        text = text[:217] + "..."
-    return (
-        f"平台：{platform}。视频ID：{video_id}。"
-        f"抽帧OCR平均置信度：{quality.get('avg_confidence', 0):.2f}。"
-        f"识别到的视频画面文字：{text}"
-    )

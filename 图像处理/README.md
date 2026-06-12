@@ -43,6 +43,7 @@ python run_ocr.py `
 
 ```powershell
 python scripts/process_latest_crawl_media.py
+python scripts/process_latest_crawl_media.py --mode gpu
 ```
 
 该脚本会自动查找 `..\数据爬取\outputs` 中最新的爬取结果目录，并处理其中 `media/` 下的所有图片和视频。输出默认写入：
@@ -56,6 +57,7 @@ outputs_from_crawl/<爬取结果目录名>/
 ```powershell
 python scripts/process_latest_crawl_media.py --dry-run
 python scripts/process_latest_crawl_media.py --image-limit 5 --video-limit 2
+python scripts/process_latest_crawl_media.py --mode gpu --image-limit 5 --video-limit 2
 ```
 
 脚本默认会显示进度条和预计剩余时间；如需静默运行可加 `--quiet`。
@@ -87,11 +89,14 @@ python run_ocr.py --input-dir data/real_raw --output-dir outputs_real_minimal --
 指定推理设备：
 
 ```powershell
-python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --device cpu
-python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --device gpu:0
+python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --mode cpu
+python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --mode gpu
+python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --device gpu:1
 ```
 
-GPU 需要安装 CUDA 版 PaddlePaddle。当前项目代码已支持 `--device gpu:0`，但如果同一 Python 环境里同时安装了 PyTorch CUDA 和 Paddle CUDA，Windows 下可能出现 CUDA/cuDNN DLL 冲突。遇到这种情况，建议为 PaddleOCR 单独创建干净环境。
+`--mode gpu` 默认使用 `gpu:0`；如果要指定第二张显卡或特殊 Paddle 设备名，可以用 `--device` 覆盖。
+
+GPU 需要安装 CUDA 版 PaddlePaddle。建议为 PaddleOCR 单独创建干净环境，避免和其他深度学习框架的 CUDA/cuDNN DLL 冲突。
 
 ## 输出
 
@@ -106,7 +111,7 @@ GPU 需要安装 CUDA 版 PaddlePaddle。当前项目代码已支持 `--device g
 - `outputs/reports/media_batch_summary.json`：混合图片/视频媒体处理汇总。
 - `outputs/reports/llm_media_batch_summary.json`：面向大模型的混合媒体精简汇总。
 
-说明：`outputs/json` 会保留文本框坐标、区域类型和所有预处理版本结果，文件会比较大，主要用于调试、可视化和课程报告证明。给大模型使用时优先读取 `outputs/llm_json` 或 `outputs/reports/llm_batch_summary.json`。
+说明：`outputs/json` 会保留文本框坐标、区域类型和所有预处理版本结果，文件会比较大，主要用于调试、可视化和课程报告证明。给大模型使用时优先读取 `outputs/llm_json` 或 `outputs/reports/llm_batch_summary.json` 中的 `ocr_text_compact`。
 
 完整批处理会对每张图运行 8 个预处理版本，CPU 上耗时会明显高于单张 OCR。调试时建议先用 `--image` 跑单张图片。
 
@@ -119,14 +124,19 @@ GPU 需要安装 CUDA 版 PaddlePaddle。当前项目代码已支持 `--device g
 GPU 环境建议：
 
 ```powershell
+cd 图像处理
 python -m venv .venv-paddle-gpu
 .\.venv-paddle-gpu\Scripts\Activate.ps1
-python -m pip install paddleocr
-python -m pip install paddlepaddle-gpu==3.3.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu130/
-python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --device gpu:0 --variant-set minimal
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements-gpu.txt
+python scripts/check_gpu_env.py
+python scripts/process_latest_crawl_media.py --mode gpu --dry-run
+python scripts/process_latest_crawl_media.py --mode gpu --variant-set minimal
 ```
 
-本机曾验证 `paddlepaddle-gpu==3.3.1` 可以识别 `gpu:0` 并执行张量运算，但在当前全局环境中 PaddleOCR/PaddleX 初始化 GPU 推理器会触发 CUDA/cuDNN DLL 冲突，因此默认仍使用 CPU。
+注意：GPU 环境中不要再执行 `python -m pip install -r requirements.txt`，因为普通依赖文件包含 CPU 版 `paddlepaddle`。如需 GPU 环境依赖，请使用 `requirements-gpu.txt`。
+
+本机 `.venv-paddle-gpu` 已验证 `paddlepaddle-gpu==3.3.1` 可以识别 `gpu:0` 并执行张量运算。完整 OCR 是否明显加速取决于图片/视频数量、预处理版本数和视频抽帧规模；几十张图片加大量视频帧通常会比 CPU 快不少，但视频解码和图片预处理仍有一部分在 CPU 上执行。
 
 ## 已验证命令
 
@@ -141,9 +151,9 @@ python run_ocr.py --input-dir data/real_raw --output-dir outputs_real_minimal --
 
 当前真实截图数据集位于 `data/real_raw`，共 37 张，来源包括百度热榜、澎湃新闻、人民网、央视新闻、腾讯新闻、IT之家。来源元数据保存在 `data/real_raw/metadata.jsonl`。
 
-## 适合写进报告的创新点
+## 创新点
 
 1. 多版本图像增强自动择优 OCR，不固定使用单一预处理流程。
 2. 将 OCR 结果扩展为结构化图像信息，包括坐标、区域类型、置信度和质量评估。
-3. 同时输出详细 OCR JSON 和 LLM 精简 JSON，避免大模型读取大量坐标噪声。
+3. 同时输出详细 OCR JSON 和 LLM 精简 JSON，其中 `ocr_text_compact` 可直接交给大模型，避免读取大量坐标噪声。
 4. 对低质量、压缩、模糊社媒图像进行 OCR 质量评估并标记是否需要人工复核。

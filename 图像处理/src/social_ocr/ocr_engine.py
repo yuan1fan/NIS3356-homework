@@ -144,31 +144,25 @@ def _as_pages(raw: Any) -> list[Any]:
 
 
 def _parse_page_dict(page: dict[str, Any], image_width: int, image_height: int) -> list[TextBlock]:
-    texts = (
-        page.get("rec_texts")
-        or page.get("texts")
-        or page.get("text")
-        or page.get("recognized_text")
-        or []
-    )
-    scores = page.get("rec_scores") or page.get("scores") or page.get("confidence") or []
-    boxes = (
-        page.get("rec_polys")
-        or page.get("dt_polys")
-        or page.get("rec_boxes")
-        or page.get("boxes")
-        or []
-    )
+    texts = _pick_page_field(page, ("rec_texts", "texts", "text", "recognized_text"))
+    scores = _pick_page_field(page, ("rec_scores", "scores", "confidence"))
+    boxes = _pick_page_field(page, ("rec_polys", "dt_polys", "rec_boxes", "boxes"))
 
     if isinstance(texts, str):
         texts = [texts]
     if isinstance(scores, (int, float)):
         scores = [float(scores)]
+    if hasattr(texts, "tolist"):
+        texts = texts.tolist()
+    if hasattr(scores, "tolist"):
+        scores = scores.tolist()
+    if hasattr(boxes, "tolist") and _safe_len(boxes) == 0:
+        boxes = []
 
     blocks: list[TextBlock] = []
     for index, text in enumerate(texts):
-        box = _normalize_box(boxes[index] if index < len(boxes) else [])
-        confidence = _safe_float(scores[index] if index < len(scores) else 0.0)
+        box = _normalize_box(boxes[index] if index < _safe_len(boxes) else [])
+        confidence = _safe_float(scores[index] if index < _safe_len(scores) else 0.0)
         normalized = normalize_text(str(text))
         blocks.append(
             TextBlock(
@@ -179,6 +173,38 @@ def _parse_page_dict(page: dict[str, Any], image_width: int, image_height: int) 
             )
         )
     return blocks
+
+
+def _pick_page_field(page: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    for key in keys:
+        if key not in page:
+            continue
+        value = page.get(key)
+        if _has_items(value):
+            return value
+    return []
+
+
+def _has_items(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value)
+    if isinstance(value, (int, float)):
+        return True
+    if hasattr(value, "size"):
+        return int(value.size) > 0
+    try:
+        return len(value) > 0
+    except TypeError:
+        return True
+
+
+def _safe_len(value: Any) -> int:
+    try:
+        return len(value)
+    except TypeError:
+        return 0
 
 
 def _parse_legacy_items(page: Any, image_width: int, image_height: int) -> list[TextBlock]:

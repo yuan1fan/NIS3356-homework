@@ -44,7 +44,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--platform", default="weibo_hotsearch", help="Platform label in OCR JSON.")
     parser.add_argument("--variant-set", choices=sorted(VARIANT_SETS), default="minimal")
-    parser.add_argument("--device", default="cpu", help="Paddle inference device, for example cpu or gpu:0.")
+    parser.add_argument(
+        "--mode",
+        choices=("cpu", "gpu"),
+        default="cpu",
+        help="Inference mode shortcut. gpu maps to gpu:0 unless --device is set.",
+    )
+    parser.add_argument(
+        "--device",
+        default="",
+        help="Advanced Paddle device override, for example cpu, gpu:0, gpu:1.",
+    )
     parser.add_argument("--image-limit", type=int, help="Optional image limit for quick tests.")
     parser.add_argument("--video-limit", type=int, help="Optional video limit for quick tests.")
     parser.add_argument(
@@ -66,6 +76,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    device = resolve_device(args.mode, args.device)
     run_dir = Path(args.crawl_run_dir) if args.crawl_run_dir else find_latest_crawl_run(Path(args.crawler_outputs_dir))
     media_dir = run_dir / "media"
     if not media_dir.exists():
@@ -83,6 +94,7 @@ def main() -> None:
     )
     print(f"Crawl run: {run_dir}")
     print(f"Media dir: {media_dir}")
+    print(f"OCR mode: {args.mode}; device: {device}; variant set: {args.variant_set}")
     print(
         "Found "
         f"{stats['image_count']} images, "
@@ -104,7 +116,7 @@ def main() -> None:
         image_limit=args.image_limit,
         video_limit=args.video_limit,
         variant_names=VARIANT_SETS[args.variant_set],
-        device=args.device,
+        device=device,
         frame_interval_seconds=args.frame_interval,
         max_video_frames=args.max_video_frames,
         frame_regions=frame_regions,
@@ -115,10 +127,17 @@ def main() -> None:
     write_run_manifest(output_dir, run_dir, media_dir, stats, report)
     print(
         f"Processed {report['image_count']} images and {report['video_count']} videos. "
+        f"Skipped images: {report.get('skipped_image_count', 0)}. "
         f"Skipped videos: {report['skipped_video_count']}."
     )
     print(f"Detailed report: {output_dir / 'reports' / 'media_batch_summary.json'}")
     print(f"LLM report: {output_dir / 'reports' / 'llm_media_batch_summary.json'}")
+
+
+def resolve_device(mode: str, device_override: str) -> str:
+    if device_override:
+        return device_override
+    return "gpu:0" if mode == "gpu" else "cpu"
 
 
 def find_latest_crawl_run(outputs_dir: Path) -> Path:
@@ -250,6 +269,7 @@ def write_run_manifest(
         "media_stats": stats,
         "ocr_output_dir": str(output_dir),
         "image_count": report.get("image_count"),
+        "skipped_image_count": report.get("skipped_image_count"),
         "video_count": report.get("video_count"),
         "skipped_video_count": report.get("skipped_video_count"),
         "llm_report": str(output_dir / "reports" / "llm_media_batch_summary.json"),

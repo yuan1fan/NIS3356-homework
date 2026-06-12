@@ -6,6 +6,7 @@ from typing import Callable
 
 import cv2
 import numpy as np
+from PIL import Image
 
 
 @dataclass(frozen=True)
@@ -21,8 +22,19 @@ def read_image(path: str | Path) -> np.ndarray:
     data = np.fromfile(str(path), dtype=np.uint8)
     image = cv2.imdecode(data, cv2.IMREAD_COLOR)
     if image is None:
-        raise ValueError(f"Cannot read image: {path}")
+        image = _read_image_with_pillow(path)
     return image
+
+
+def _read_image_with_pillow(path: Path) -> np.ndarray:
+    try:
+        with Image.open(path) as pil_image:
+            if getattr(pil_image, "is_animated", False):
+                pil_image.seek(0)
+            rgb_image = pil_image.convert("RGB")
+            return cv2.cvtColor(np.asarray(rgb_image), cv2.COLOR_RGB2BGR)
+    except Exception as exc:  # noqa: BLE001
+        raise ValueError(f"Cannot read image: {path}") from exc
 
 
 def write_image(path: str | Path, image: np.ndarray) -> None:
@@ -128,4 +140,3 @@ def text_area_ratio(boxes: list[list[list[float]]], image_shape: tuple[int, ...]
         points = np.array(box, dtype=np.float32)
         total += abs(float(cv2.contourArea(points)))
     return min(total / area, 1.0)
-

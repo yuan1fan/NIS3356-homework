@@ -4,7 +4,7 @@ import argparse
 import time
 from pathlib import Path
 
-from src.social_ocr.pipeline import process_batch, process_image, process_media_batch, process_video
+from src.social_ocr.pipeline import make_llm_result, process_batch, process_image, process_media_batch, process_video
 
 
 VARIANT_SETS = {
@@ -46,13 +46,20 @@ def main() -> None:
         help="Preprocessing variants to run. full=8 variants, fast=4 variants, minimal=2 variants.",
     )
     parser.add_argument(
-        "--device",
+        "--mode",
+        choices=("cpu", "gpu"),
         default="cpu",
-        help="Paddle inference device, for example cpu or gpu:0. Requires paddlepaddle-gpu for GPU.",
+        help="Inference mode shortcut. gpu maps to gpu:0 unless --device is set.",
+    )
+    parser.add_argument(
+        "--device",
+        default="",
+        help="Advanced Paddle device override, for example cpu, gpu:0, gpu:1.",
     )
     parser.add_argument("--quiet", action="store_true", help="Disable progress output in media-dir mode.")
     args = parser.parse_args()
     variant_names = VARIANT_SETS[args.variant_set]
+    device = resolve_device(args.mode, args.device)
 
     frame_regions = tuple(item.strip() for item in args.frame_regions.split(",") if item.strip())
 
@@ -62,13 +69,13 @@ def main() -> None:
             output_dir=args.output_dir,
             platform=args.platform,
             variant_names=variant_names,
-            device=args.device,
+            device=device,
         )
         print(f"Detailed JSON: {result['json_path']}")
         print(f"LLM JSON: {result['llm_json_path']}")
         print(f"Visualization: {result['visualization_path']}")
         print(f"Best variant: {result['best_variant']} score={result['best_score']}")
-        print(result["for_llm_summary"])
+        print(make_llm_result(result)["ocr_text_compact"])
     elif args.video:
         result = process_video(
             args.video,
@@ -78,12 +85,12 @@ def main() -> None:
             max_frames=args.max_video_frames,
             frame_regions=frame_regions,
             variant_names=variant_names,
-            device=args.device,
+            device=device,
         )
         print(f"Detailed JSON: {result['json_path']}")
         print(f"LLM JSON: {result['llm_json_path']}")
         print(f"Sampled frames: {result['frame_sampling']['sampled_frame_count']}")
-        print(result["for_llm_summary"])
+        print(make_llm_result(result)["ocr_text_compact"])
     elif args.media_dir:
         progress = SimpleProgress(enabled=not args.quiet)
         report = process_media_batch(
@@ -93,7 +100,7 @@ def main() -> None:
             image_limit=args.image_limit,
             video_limit=args.video_limit,
             variant_names=variant_names,
-            device=args.device,
+            device=device,
             frame_interval_seconds=args.frame_interval,
             max_video_frames=args.max_video_frames,
             frame_regions=frame_regions,
@@ -102,7 +109,9 @@ def main() -> None:
         progress.finish()
         print(
             f"Processed {report['image_count']} images and "
-            f"{report['video_count']} videos. Skipped videos: {report['skipped_video_count']}."
+            f"{report['video_count']} videos. "
+            f"Skipped images: {report.get('skipped_image_count', 0)}. "
+            f"Skipped videos: {report['skipped_video_count']}."
         )
         print(f"Report: {Path(args.output_dir) / 'reports' / 'media_batch_summary.json'}")
         print(f"LLM report: {Path(args.output_dir) / 'reports' / 'llm_media_batch_summary.json'}")
@@ -113,7 +122,7 @@ def main() -> None:
             platform=args.platform,
             limit=args.limit,
             variant_names=variant_names,
-            device=args.device,
+            device=device,
         )
         print(f"Processed {len(results)} images.")
         for result in results:
@@ -121,6 +130,12 @@ def main() -> None:
                 f"- {result['image_id']}: {result['best_variant']} "
                 f"score={result['best_score']} llm_json={result['llm_json_path']}"
             )
+
+
+def resolve_device(mode: str, device_override: str) -> str:
+    if device_override:
+        return device_override
+    return "gpu:0" if mode == "gpu" else "cpu"
 
 
 class SimpleProgress:
