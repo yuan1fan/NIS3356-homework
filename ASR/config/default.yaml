@@ -1,0 +1,36 @@
+asr:
+  model_name: "base"
+  device: "cpu"
+  language: null  # null = auto-detect; set "zh" to force Chinese, "en" to force English
+  beam_size: 5
+  simplify_chinese: true  # convert Traditional → Simplified Chinese after transcription
+
+enhancer:
+  target_sr: 16000
+  denoise: false
+
+privacy_guard:
+  enabled: true
+  categories:
+    - mobile_phone
+    - mobile_phone_zh
+    - id_card
+    - id_card_x
+    - id_card_zh
+    - bank_card
+    - email
+
+llm_corrector:
+  enabled: false
+  model_name: "placeholder"
+  device: "cpu"
+  max_new_tokens: 128
+  confidence_threshold: 0.7
+
+fusion:
+  timeline_tolerance: 0.1
+
+ui:
+  title: "ASR 安全审计系统"
+  share: false
+  server_port: 7860
