@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 
 from src.social_ocr.pipeline import process_batch, process_image, process_media_batch, process_video
@@ -49,6 +50,7 @@ def main() -> None:
         default="cpu",
         help="Paddle inference device, for example cpu or gpu:0. Requires paddlepaddle-gpu for GPU.",
     )
+    parser.add_argument("--quiet", action="store_true", help="Disable progress output in media-dir mode.")
     args = parser.parse_args()
     variant_names = VARIANT_SETS[args.variant_set]
 
@@ -83,6 +85,7 @@ def main() -> None:
         print(f"Sampled frames: {result['frame_sampling']['sampled_frame_count']}")
         print(result["for_llm_summary"])
     elif args.media_dir:
+        progress = SimpleProgress(enabled=not args.quiet)
         report = process_media_batch(
             input_dir=Path(args.media_dir),
             output_dir=Path(args.output_dir),
@@ -94,7 +97,9 @@ def main() -> None:
             frame_interval_seconds=args.frame_interval,
             max_video_frames=args.max_video_frames,
             frame_regions=frame_regions,
+            progress_callback=progress,
         )
+        progress.finish()
         print(
             f"Processed {report['image_count']} images and "
             f"{report['video_count']} videos. Skipped videos: {report['skipped_video_count']}."
@@ -116,6 +121,36 @@ def main() -> None:
                 f"- {result['image_id']}: {result['best_variant']} "
                 f"score={result['best_score']} llm_json={result['llm_json_path']}"
             )
+
+
+class SimpleProgress:
+    def __init__(self, enabled: bool = True) -> None:
+        self.enabled = enabled
+        self.count = 0
+        self.started_at = time.time()
+
+    def __call__(self, event: dict) -> None:
+        if not self.enabled:
+            return
+        if event.get("event") == "video_start":
+            print(f"\nVideo: {Path(str(event.get('path'))).name}")
+            return
+        if event.get("event") != "advance":
+            return
+        self.count += 1
+        elapsed = time.time() - self.started_at
+        if event.get("kind") == "video_frame":
+            message = (
+                f"{self.count} units | {Path(str(event.get('path'))).name} "
+                f"t={event.get('timestamp_seconds')}s {event.get('region')}"
+            )
+        else:
+            message = f"{self.count} units | {Path(str(event.get('path'))).name}"
+        print(f"\r{message} | elapsed={elapsed:.0f}s", end="", flush=True)
+
+    def finish(self) -> None:
+        if self.enabled:
+            print()
 
 
 if __name__ == "__main__":

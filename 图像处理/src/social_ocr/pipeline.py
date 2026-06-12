@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Callable, Iterable
 
 import numpy as np
 
@@ -24,6 +24,7 @@ from .visualize import draw_text_blocks
 
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+ProgressCallback = Callable[[dict[str, Any]], None]
 
 
 def process_image(
@@ -179,6 +180,7 @@ def process_video(
     save_frames: bool = True,
     variant_names: set[str] | None = None,
     device: str = "cpu",
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     video_path = Path(video_path)
     output_dir = Path(output_dir)
@@ -203,6 +205,16 @@ def process_video(
     )
 
     frame_results: list[dict[str, Any]] = []
+    if progress_callback:
+        progress_callback(
+            {
+                "event": "video_start",
+                "path": str(video_path),
+                "media_id": video_id,
+                "frame_count": len(frames),
+                "region_count": len(frame_regions),
+            }
+        )
     for frame in frames:
         for region in crop_frame_regions(frame.image, frame_regions):
             region_id = f"{video_id}_t{frame.timestamp_seconds:.1f}_{region.name}"
@@ -239,6 +251,18 @@ def process_video(
                     "visualization_path": result["visualization_path"],
                 }
             )
+            if progress_callback:
+                progress_callback(
+                    {
+                        "event": "advance",
+                        "kind": "video_frame",
+                        "path": str(video_path),
+                        "media_id": video_id,
+                        "timestamp_seconds": frame.timestamp_seconds,
+                        "region": region.name,
+                        "text_chars": result["quality_assessment"]["char_count"],
+                    }
+                )
 
     text_lines = _dedupe_text_lines(item["ocr_text"] for item in frame_results)
     quality = _summarize_frame_quality(frame_results)
@@ -332,6 +356,7 @@ def process_media_batch(
     frame_interval_seconds: float | None = None,
     max_video_frames: int = 32,
     frame_regions: tuple[str, ...] = ("full", "bottom"),
+    progress_callback: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     input_dir = Path(input_dir)
     globber = input_dir.rglob if recursive else input_dir.glob
@@ -347,8 +372,9 @@ def process_media_batch(
         raise FileNotFoundError(f"No supported media found in {input_dir}")
 
     engine = PaddleOcrEngine(device=device)
-    image_results = [
-        process_image(
+    image_results = []
+    for index, path in enumerate(image_paths, start=1):
+        result = process_image(
             path,
             output_dir=output_dir,
             platform=platform,
@@ -356,8 +382,19 @@ def process_media_batch(
             variant_names=variant_names,
             device=device,
         )
-        for path in image_paths
-    ]
+        image_results.append(result)
+        if progress_callback:
+            progress_callback(
+                {
+                    "event": "advance",
+                    "kind": "image",
+                    "path": str(path),
+                    "media_id": result["media_id"],
+                    "index": index,
+                    "total": len(image_paths),
+                    "text_chars": result["quality_assessment"]["char_count"],
+                }
+            )
 
     video_results = []
     skipped_videos = []
@@ -377,6 +414,7 @@ def process_media_batch(
                     frame_regions=frame_regions,
                     variant_names=variant_names,
                     device=device,
+                    progress_callback=progress_callback,
                 )
             )
         except Exception as exc:  # noqa: BLE001

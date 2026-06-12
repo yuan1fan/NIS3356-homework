@@ -58,6 +58,8 @@ python scripts/process_latest_crawl_media.py --dry-run
 python scripts/process_latest_crawl_media.py --image-limit 5 --video-limit 2
 ```
 
+脚本默认会显示进度条和预计剩余时间；如需静默运行可加 `--quiet`。
+
 也可以手动指定某次爬取结果：
 
 ```powershell

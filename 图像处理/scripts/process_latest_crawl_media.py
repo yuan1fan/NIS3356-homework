@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 
@@ -12,7 +13,7 @@ if str(MODULE_ROOT) not in sys.path:
     sys.path.insert(0, str(MODULE_ROOT))
 
 from src.social_ocr.pipeline import IMAGE_SUFFIXES, process_media_batch  # noqa: E402
-from src.social_ocr.video import VIDEO_LIKE_SUFFIXES, is_probable_video_file  # noqa: E402
+from src.social_ocr.video import VIDEO_LIKE_SUFFIXES, build_sampling_plan, get_video_metadata, is_probable_video_file  # noqa: E402
 
 
 VARIANT_SETS = {
@@ -59,6 +60,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-video-frames", type=int, default=32)
     parser.add_argument("--dry-run", action="store_true", help="Only print media counts; do not run OCR.")
+    parser.add_argument("--quiet", action="store_true", help="Disable progress output.")
     return parser.parse_args()
 
 
@@ -70,20 +72,31 @@ def main() -> None:
         raise FileNotFoundError(f"Cannot find media directory: {media_dir}")
 
     output_dir = Path(args.output_dir) if args.output_dir else MODULE_ROOT / "outputs_from_crawl" / run_dir.name
-    stats = count_media(media_dir)
+    frame_regions = tuple(item.strip() for item in args.frame_regions.split(",") if item.strip())
+    stats = count_media(
+        media_dir,
+        args.frame_interval,
+        args.max_video_frames,
+        frame_regions,
+        args.image_limit,
+        args.video_limit,
+    )
     print(f"Crawl run: {run_dir}")
     print(f"Media dir: {media_dir}")
     print(
         "Found "
         f"{stats['image_count']} images, "
         f"{stats['video_like_count']} video-like files, "
-        f"{stats['probable_video_count']} probable videos."
+        f"{stats['probable_video_count']} probable videos. "
+        f"Selected {stats['selected_image_count']} images and "
+        f"{stats['selected_probable_video_count']} probable videos. "
+        f"Estimated OCR units for this run: {stats['estimated_ocr_units']}."
     )
     if args.dry_run:
         print("Dry run finished; OCR was not executed.")
         return
 
-    frame_regions = tuple(item.strip() for item in args.frame_regions.split(",") if item.strip())
+    progress = ProgressPrinter(total=stats["estimated_ocr_units"], enabled=not args.quiet)
     report = process_media_batch(
         input_dir=media_dir,
         output_dir=output_dir,
@@ -95,7 +108,9 @@ def main() -> None:
         frame_interval_seconds=args.frame_interval,
         max_video_frames=args.max_video_frames,
         frame_regions=frame_regions,
+        progress_callback=progress,
     )
+    progress.finish()
 
     write_run_manifest(output_dir, run_dir, media_dir, stats, report)
     print(
@@ -119,16 +134,107 @@ def find_latest_crawl_run(outputs_dir: Path) -> Path:
     return max(candidates, key=lambda path: path.stat().st_mtime)
 
 
-def count_media(media_dir: Path) -> dict[str, int]:
+def count_media(
+    media_dir: Path,
+    frame_interval_seconds: float | None,
+    max_video_frames: int,
+    frame_regions: tuple[str, ...],
+    image_limit: int | None = None,
+    video_limit: int | None = None,
+) -> dict[str, int]:
     files = [path for path in media_dir.rglob("*") if path.is_file()]
-    image_count = sum(1 for path in files if path.suffix.lower() in IMAGE_SUFFIXES)
-    video_like = [path for path in files if path.suffix.lower() in VIDEO_LIKE_SUFFIXES]
-    probable_video_count = sum(1 for path in video_like if is_probable_video_file(path))
+    image_paths = sorted(path for path in files if path.suffix.lower() in IMAGE_SUFFIXES)
+    video_like = sorted(path for path in files if path.suffix.lower() in VIDEO_LIKE_SUFFIXES)
+    probable_videos = [path for path in video_like if is_probable_video_file(path)]
+    selected_images = image_paths[:image_limit] if image_limit is not None else image_paths
+    selected_video_like = video_like[:video_limit] if video_limit is not None else video_like
+    selected_probable_videos = [
+        path for path in selected_video_like if is_probable_video_file(path)
+    ]
+    estimated_video_units = sum(
+        estimate_video_ocr_units(path, frame_interval_seconds, max_video_frames, frame_regions)
+        for path in selected_probable_videos
+    )
     return {
-        "image_count": image_count,
+        "image_count": len(image_paths),
         "video_like_count": len(video_like),
-        "probable_video_count": probable_video_count,
+        "probable_video_count": len(probable_videos),
+        "selected_image_count": len(selected_images),
+        "selected_video_like_count": len(selected_video_like),
+        "selected_probable_video_count": len(selected_probable_videos),
+        "estimated_ocr_units": len(selected_images) + estimated_video_units,
     }
+
+
+def estimate_video_ocr_units(
+    path: Path,
+    frame_interval_seconds: float | None,
+    max_video_frames: int,
+    frame_regions: tuple[str, ...],
+) -> int:
+    try:
+        metadata = get_video_metadata(path)
+        plan = build_sampling_plan(
+            float(metadata.get("duration_seconds", 0.0) or 0.0),
+            frame_interval_seconds,
+            max_video_frames,
+        )
+        return max(1, len(plan.timestamps)) * max(1, len(frame_regions))
+    except Exception:
+        return max(1, max_video_frames) * max(1, len(frame_regions))
+
+
+class ProgressPrinter:
+    def __init__(self, total: int, enabled: bool = True) -> None:
+        self.total = max(1, int(total))
+        self.enabled = enabled
+        self.done = 0
+        self.started_at = time.time()
+        self.last_message = ""
+
+    def __call__(self, event: dict) -> None:
+        if not self.enabled:
+            return
+        if event.get("event") == "video_start":
+            self.last_message = f"video {Path(str(event.get('path'))).name}"
+            self._render()
+            return
+        if event.get("event") != "advance":
+            return
+        self.done += 1
+        path = Path(str(event.get("path", ""))).name
+        kind = event.get("kind", "")
+        text_chars = event.get("text_chars", 0)
+        if kind == "video_frame":
+            self.last_message = (
+                f"{path} t={event.get('timestamp_seconds')}s "
+                f"{event.get('region')} chars={text_chars}"
+            )
+        else:
+            self.last_message = f"{path} chars={text_chars}"
+        self._render()
+
+    def finish(self) -> None:
+        if not self.enabled:
+            return
+        self.done = min(max(self.done, 0), self.total)
+        self._render(final=True)
+
+    def _render(self, final: bool = False) -> None:
+        width = 28
+        ratio = min(1.0, self.done / self.total)
+        filled = int(width * ratio)
+        bar = "#" * filled + "-" * (width - filled)
+        elapsed = max(0.1, time.time() - self.started_at)
+        speed = self.done / elapsed
+        remaining = (self.total - self.done) / speed if speed > 0 else 0.0
+        end = "\n" if final else "\r"
+        print(
+            f"[{bar}] {self.done}/{self.total} {ratio * 100:5.1f}% "
+            f"elapsed={elapsed:5.0f}s eta={remaining:5.0f}s {self.last_message[:80]}",
+            end=end,
+            flush=True,
+        )
 
 
 def write_run_manifest(
