@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+.venv-*/
+.paddlex/
+*.log
+
+# Local bulky/generated OCR outputs. Keep curated sample outputs committed explicitly.
+图像处理/outputs*/
+!图像处理/outputs_sample/
+!图像处理/outputs_sample/**
+!图像处理/outputs_real_minimal/
+!图像处理/outputs_real_minimal/json/
+!图像处理/outputs_real_minimal/json/**
+!图像处理/outputs_real_minimal/llm_json/
+!图像处理/outputs_real_minimal/llm_json/**
+!图像处理/outputs_real_minimal/reports/
+!图像处理/outputs_real_minimal/reports/**
+!图像处理/outputs_real_minimal/visualizations/
+!图像处理/outputs_real_minimal/visualizations/**
+
