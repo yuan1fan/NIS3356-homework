@@ -1,0 +1,7 @@
+--extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu130/
+
+paddlepaddle-gpu==3.3.1
+paddleocr>=3.7.0
+opencv-python>=4.10.0
+Pillow>=10.0.0
+numpy>=1.26,<2.4

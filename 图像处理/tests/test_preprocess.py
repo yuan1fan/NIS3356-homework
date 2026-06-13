@@ -7,7 +7,8 @@ from src.social_ocr.postprocess import score_result
 from src.social_ocr.ocr_engine import PaddleOcrEngine, parse_paddle_result
 from src.social_ocr.preprocess import generate_variants, read_image
 from src.social_ocr import pipeline
-from src.social_ocr.pipeline import _dedupe_text_lines
+from src.social_ocr.pipeline import _compact_text, _dedupe_text_lines, _summarize_frame_preprocess
+from src.social_ocr.linebreak_repair import should_join_ocr_lines
 from src.social_ocr.video import build_sampling_plan, extract_video_frames, is_probable_video_file
 
 
@@ -118,3 +119,76 @@ def test_video_llm_text_dedupes_neighbor_repeats() -> None:
     )
 
     assert lines == ["中国队为什么没进世界杯？", "足球", "佛得角", "库拉索"]
+
+
+def test_compact_text_removes_repeated_source_watermarks() -> None:
+    compact = _compact_text(
+        "\n".join(
+            [
+                "400多名老人遭养生诈骗",
+                "@北京日报",
+                "店员以提供免费按摩、低价足疗券等",
+                "@北京日板",
+                "以其身体状况不好为由，引荐所谓的专家",
+                "@北京日報",
+                "涉案超3000万",
+            ]
+        )
+    )
+
+    assert "400多名老人遭养生诈骗" in compact
+    assert "店员以提供免费按摩" in compact
+    assert "涉案超3000万" in compact
+    assert "北京日" not in compact
+
+
+def test_compact_text_repairs_ocr_hard_linebreaks() -> None:
+    compact = _compact_text(
+        "\n".join(
+            [
+                "400多名老人遭养生诈骗",
+                "自报",
+                "涉案超3000万",
+                "北京警方近期打掉一个专门针对老",
+                "年人的诈骗团伙，抓获31名犯罪嫌",
+                "疑人，涉及朝阳、顺义、平谷、密",
+                "云4个区20家门店",
+                "店员以提供免费按摩、低价足疗券等",
+                "方式将老年人吸引至店内，按摩过程",
+                "中通过聊天锁定一些子女不在身边、",
+                "经济条件较好的老年人",
+                "以其身体状况不好为由，引荐所谓",
+                "的“专家”做免费体检。并虚构各",
+                "种病症，称如不及时治疗将危及生",
+                "命，诱骗充值高额治疗费用，涉及",
+                "肠道清洗、祛湿排毒等多个项目",
+                "每个项目单次收费1万至2万元不等",
+                "共计400余老年人被骗，涉案金额",
+                "3000万余元",
+            ]
+        )
+    )
+
+    assert "老；年人" not in compact
+    assert "犯罪嫌；疑人" not in compact
+    assert "平谷、密；云" not in compact
+    assert "涉案金额3000万余元" in compact
+    assert "400多名老人遭养生诈骗；自报；涉案超3000万；北京警方" in compact
+    assert "20家门店；店员以提供免费按摩" in compact
+
+
+def test_linebreak_repair_uses_boundary_classifier_for_ambiguous_breaks() -> None:
+    assert should_join_ocr_lines("网络平台需要对热点话题中的文本", "图片和视频进行采集")
+    assert not should_join_ocr_lines("涉案超3000万", "北京警方近期打掉一个专门针对老年人的诈骗团伙")
+
+
+def test_video_preprocess_summary_uses_common_variant_and_average_score() -> None:
+    summary = _summarize_frame_preprocess(
+        [
+            {"best_variant": "original", "best_score": 0.8},
+            {"best_variant": "clahe", "best_score": 0.6},
+            {"best_variant": "original", "best_score": 1.0},
+        ]
+    )
+
+    assert summary == {"best_variant": "original", "best_score": 0.8}

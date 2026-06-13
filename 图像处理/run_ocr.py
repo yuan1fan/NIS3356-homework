@@ -56,6 +56,26 @@ def main() -> None:
         default="",
         help="Advanced Paddle device override, for example cpu, gpu:0, gpu:1.",
     )
+    parser.add_argument(
+        "--enable-clip",
+        action="store_true",
+        help="Enable Chinese-CLIP zero-shot visual type and semantic tag classification.",
+    )
+    parser.add_argument(
+        "--clip-model",
+        default="OFA-Sys/chinese-clip-vit-base-patch16",
+        help="Hugging Face Chinese-CLIP model name.",
+    )
+    parser.add_argument(
+        "--enable-caption",
+        action="store_true",
+        help="Generate one-sentence image captions for non-text-heavy visual types.",
+    )
+    parser.add_argument(
+        "--caption-model",
+        default="Salesforce/blip-image-captioning-base",
+        help="Hugging Face image captioning model name.",
+    )
     parser.add_argument("--quiet", action="store_true", help="Disable progress output in media-dir mode.")
     args = parser.parse_args()
     variant_names = VARIANT_SETS[args.variant_set]
@@ -70,6 +90,10 @@ def main() -> None:
             platform=args.platform,
             variant_names=variant_names,
             device=device,
+            enable_clip=args.enable_clip,
+            clip_model=args.clip_model,
+            enable_caption=args.enable_caption,
+            caption_model=args.caption_model,
         )
         print(f"Detailed JSON: {result['json_path']}")
         print(f"LLM JSON: {result['llm_json_path']}")
@@ -86,6 +110,10 @@ def main() -> None:
             frame_regions=frame_regions,
             variant_names=variant_names,
             device=device,
+            enable_clip=args.enable_clip,
+            clip_model=args.clip_model,
+            enable_caption=args.enable_caption,
+            caption_model=args.caption_model,
         )
         print(f"Detailed JSON: {result['json_path']}")
         print(f"LLM JSON: {result['llm_json_path']}")
@@ -104,6 +132,10 @@ def main() -> None:
             frame_interval_seconds=args.frame_interval,
             max_video_frames=args.max_video_frames,
             frame_regions=frame_regions,
+            enable_clip=args.enable_clip,
+            clip_model=args.clip_model,
+            enable_caption=args.enable_caption,
+            caption_model=args.caption_model,
             progress_callback=progress,
         )
         progress.finish()
@@ -123,6 +155,10 @@ def main() -> None:
             limit=args.limit,
             variant_names=variant_names,
             device=device,
+            enable_clip=args.enable_clip,
+            clip_model=args.clip_model,
+            enable_caption=args.enable_caption,
+            caption_model=args.caption_model,
         )
         print(f"Processed {len(results)} images.")
         for result in results:

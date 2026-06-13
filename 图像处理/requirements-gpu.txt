@@ -1,8 +1,13 @@
---extra-index-url https://www.paddlepaddle.org.cn/packages/stable/cu130/
-
-paddlepaddle-gpu==3.3.1
-paddleocr>=3.6.0
-opencv-python>=4.10.0
-Pillow>=10.0.0
-numpy>=1.26.0
-pytest>=8.0.0
+# Windows GPU setup uses two environments to avoid Paddle/Torch CUDA DLL conflicts.
+#
+# OCR environment:
+#   python -m venv .venv-ocr-gpu
+#   .\.venv-ocr-gpu\Scripts\python.exe -m pip install -r requirements-ocr-gpu.txt
+#
+# Chinese-CLIP/caption environment:
+#   python -m venv .venv-paddle-gpu
+#   .\.venv-paddle-gpu\Scripts\python.exe -m pip install -r requirements-vision-gpu.txt
+#
+# The code auto-detects these default paths. Override with:
+#   $env:SOCIAL_OCR_PADDLE_PYTHON="C:\path\to\paddle\python.exe"
+#   $env:SOCIAL_OCR_TORCH_PYTHON="C:\path\to\torch\python.exe"

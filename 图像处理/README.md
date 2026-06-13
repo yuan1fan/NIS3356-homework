@@ -22,6 +22,34 @@ python scripts/fetch_hotlist_sample.py
 python run_ocr.py --input-dir data/raw --output-dir outputs --platform weibo
 ```
 
+## 图形界面
+
+本模块提供一个本地 Web UI，用于课堂展示和手动测试。界面支持拖拽上传图片/视频、多文件识别、CPU/GPU 模式选择、预处理版本选择、视频抽帧区域选择，并展示 `ocr_text_compact`、平均置信度、字符数、是否需要复核、Chinese-CLIP 视觉分类和可视化结果。
+
+```powershell
+python ui_server.py
+```
+
+启动后打开：
+
+```text
+http://127.0.0.1:7862
+```
+
+GPU 环境中可以这样启动：
+
+```powershell
+.\.venv-paddle-gpu\Scripts\Activate.ps1
+python ui_server.py
+```
+
+当前 Windows GPU 版本采用双进程环境，避免 PaddleOCR 与 PyTorch 同进程加载 CUDA/cuDNN 时发生 DLL 冲突：
+
+- `.venv-ocr-gpu`：只安装 PaddleOCR + `paddlepaddle-gpu`，负责 OCR 识别，运行在 `gpu:0`。
+- `.venv-paddle-gpu`：安装 PyTorch CUDA + Transformers，负责 Chinese-CLIP 分类、BLIP 一句话描述和 UI/CLI 主进程，运行在 `cuda:0`。
+
+UI 上传文件会临时保存在 `ui_uploads/`，识别结果保存在 `ui_outputs/`，这两个目录默认不提交到 Git。
+
 单张图片：
 
 ```powershell
@@ -44,6 +72,7 @@ python run_ocr.py `
 ```powershell
 python scripts/process_latest_crawl_media.py
 python scripts/process_latest_crawl_media.py --mode gpu
+python scripts/process_latest_crawl_media.py --enable-clip --image-limit 5 --video-limit 1
 ```
 
 该脚本会自动查找 `..\数据爬取\outputs` 中最新的爬取结果目录，并处理其中 `media/` 下的所有图片和视频。输出默认写入：
@@ -74,6 +103,30 @@ python scripts/process_latest_crawl_media.py `
 
 说明：`.bin` 文件会先做文件头判断。HTML 播放页不会当作视频处理；只有可被识别为 MP4/WebM/AVI 等视频容器的数据才会进入抽帧 OCR。
 
+## Chinese-CLIP 视觉语义
+
+除了 OCR，本模块可选启用 Chinese-CLIP 零样本图文匹配，对图片或视频帧输出：
+
+- `visual_type`：图片类型，如聊天记录截图、新闻报道截图、新闻现场照片、风景或环境照片、信息图表、宣传海报、表情包等。
+- `semantic_tags`：视觉语义标签，如诈骗、违法犯罪、公共安全、财经消费、社会民生、广告营销等。
+- `visual_summary`：根据 Chinese-CLIP 分类和标签组织出的中文摘要，便于交给后续大模型。
+
+注意：Chinese-CLIP 本身不是生成式图片描述模型，它负责把图片与候选中文标签做匹配。`visual_summary` 是本模块基于匹配结果生成的简要说明；如果需要真正的自由文本 caption，可以后续再接 BLIP 或 Qwen-VL。
+
+快速只测试视觉分类，不跑 OCR：
+
+```powershell
+python scripts/test_chinese_clip_semantics.py data/raw/sample_weibo_hotsearch.png --device cpu
+python scripts/test_chinese_clip_semantics.py data/real_raw --limit 6 --device cpu --output outputs/clip_semantics_sample.json
+```
+
+处理爬取结果并同时输出 OCR + Chinese-CLIP 视觉语义：
+
+```powershell
+python scripts/process_latest_crawl_media.py --enable-clip --variant-set minimal
+python scripts/process_latest_crawl_media.py --mode gpu --enable-clip --image-limit 10 --video-limit 2
+```
+
 抓取真实网页截图数据：
 
 ```powershell
@@ -96,7 +149,7 @@ python run_ocr.py --image data/raw/sample_weibo_hotsearch.png --device gpu:1
 
 `--mode gpu` 默认使用 `gpu:0`；如果要指定第二张显卡或特殊 Paddle 设备名，可以用 `--device` 覆盖。
 
-GPU 需要安装 CUDA 版 PaddlePaddle。建议为 PaddleOCR 单独创建干净环境，避免和其他深度学习框架的 CUDA/cuDNN DLL 冲突。
+GPU 需要安装 CUDA 版 PaddlePaddle 和 CUDA 版 PyTorch。Windows 下不建议把两者装进同一个运行进程；本模块会自动调用两个 worker 进程，让 OCR、分类和 caption 三步都使用 GPU。
 
 ## 输出
 
@@ -125,18 +178,27 @@ GPU 环境建议：
 
 ```powershell
 cd 图像处理
+python -m venv .venv-ocr-gpu
+.\.venv-ocr-gpu\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
+.\.venv-ocr-gpu\Scripts\python.exe -m pip install -r requirements-ocr-gpu.txt
+
 python -m venv .venv-paddle-gpu
-.\.venv-paddle-gpu\Scripts\Activate.ps1
-python -m pip install --upgrade pip setuptools wheel
-python -m pip install -r requirements-gpu.txt
-python scripts/check_gpu_env.py
-python scripts/process_latest_crawl_media.py --mode gpu --dry-run
-python scripts/process_latest_crawl_media.py --mode gpu --variant-set minimal
+.\.venv-paddle-gpu\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
+.\.venv-paddle-gpu\Scripts\python.exe -m pip install -r requirements-vision-gpu.txt
+
+.\.venv-paddle-gpu\Scripts\python.exe scripts/check_gpu_env.py
+.\.venv-paddle-gpu\Scripts\python.exe scripts/process_latest_crawl_media.py --mode gpu --dry-run
+.\.venv-paddle-gpu\Scripts\python.exe scripts/process_latest_crawl_media.py --mode gpu --variant-set minimal --enable-clip --enable-caption
 ```
 
-注意：GPU 环境中不要再执行 `python -m pip install -r requirements.txt`，因为普通依赖文件包含 CPU 版 `paddlepaddle`。如需 GPU 环境依赖，请使用 `requirements-gpu.txt`。
+如需自定义环境路径，可以设置：
 
-本机 `.venv-paddle-gpu` 已验证 `paddlepaddle-gpu==3.3.1` 可以识别 `gpu:0` 并执行张量运算。完整 OCR 是否明显加速取决于图片/视频数量、预处理版本数和视频抽帧规模；几十张图片加大量视频帧通常会比 CPU 快不少，但视频解码和图片预处理仍有一部分在 CPU 上执行。
+```powershell
+$env:SOCIAL_OCR_PADDLE_PYTHON="C:\path\to\paddle\python.exe"
+$env:SOCIAL_OCR_TORCH_PYTHON="C:\path\to\torch\python.exe"
+```
+
+注意：不要把 `requirements-ocr-gpu.txt` 和 `requirements-vision-gpu.txt` 装进同一个 Windows 环境后再在同一进程里同时导入 Paddle 和 Torch。完整 OCR 是否明显加速取决于图片/视频数量、预处理版本数和视频抽帧规模；几十张图片加大量视频帧通常会比 CPU 快不少，但视频解码和图片预处理仍有一部分在 CPU 上执行。
 
 ## 已验证命令
 

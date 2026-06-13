@@ -10,6 +10,8 @@ __pycache__/
 
 # Local bulky/generated OCR outputs. Keep curated sample outputs committed explicitly.
 图像处理/outputs*/
+图像处理/ui_outputs/
+图像处理/ui_uploads/
 !图像处理/outputs_sample/
 !图像处理/outputs_sample/**
 !图像处理/outputs_real_minimal/

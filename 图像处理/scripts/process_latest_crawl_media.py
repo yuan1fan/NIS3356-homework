@@ -69,6 +69,26 @@ def parse_args() -> argparse.Namespace:
         help="Override video frame interval. Default auto: 2s under 64s, otherwise duration/32.",
     )
     parser.add_argument("--max-video-frames", type=int, default=32)
+    parser.add_argument(
+        "--enable-clip",
+        action="store_true",
+        help="Enable Chinese-CLIP zero-shot visual type and semantic tag classification.",
+    )
+    parser.add_argument(
+        "--clip-model",
+        default="OFA-Sys/chinese-clip-vit-base-patch16",
+        help="Hugging Face Chinese-CLIP model name.",
+    )
+    parser.add_argument(
+        "--enable-caption",
+        action="store_true",
+        help="Generate one-sentence image captions for non-text-heavy visual types.",
+    )
+    parser.add_argument(
+        "--caption-model",
+        default="Salesforce/blip-image-captioning-base",
+        help="Hugging Face image captioning model name.",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Only print media counts; do not run OCR.")
     parser.add_argument("--quiet", action="store_true", help="Disable progress output.")
     return parser.parse_args()
@@ -95,6 +115,8 @@ def main() -> None:
     print(f"Crawl run: {run_dir}")
     print(f"Media dir: {media_dir}")
     print(f"OCR mode: {args.mode}; device: {device}; variant set: {args.variant_set}")
+    print(f"Chinese-CLIP visual semantics: {'enabled' if args.enable_clip else 'disabled'}")
+    print(f"Conditional image captioning: {'enabled' if args.enable_caption else 'disabled'}")
     print(
         "Found "
         f"{stats['image_count']} images, "
@@ -120,6 +142,10 @@ def main() -> None:
         frame_interval_seconds=args.frame_interval,
         max_video_frames=args.max_video_frames,
         frame_regions=frame_regions,
+        enable_clip=args.enable_clip,
+        clip_model=args.clip_model,
+        enable_caption=args.enable_caption,
+        caption_model=args.caption_model,
         progress_callback=progress,
     )
     progress.finish()

@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>数字图像处理 OCR 模块</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">PaddleOCR · 图像处理模块</p>
+          <h1>社交媒体图片 / 视频文本提取</h1>
+        </div>
+        <div class="status-pill" id="serverStatus">
+          <span></span>
+          本地服务已连接
+        </div>
+      </header>
+
+      <section class="workspace">
+        <form class="panel controls" id="ocrForm">
+          <div class="dropzone" id="dropzone">
+            <input
+              id="fileInput"
+              name="files"
+              type="file"
+              aria-label="上传图片或视频文件"
+              accept="image/*,video/*,.mp4,.webm,.avi,.mov,.mkv,.bin"
+              multiple
+            />
+            <div class="drop-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path d="M12 15V4m0 0 4 4m-4-4-4 4" />
+                <path d="M20 15v4a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-4" />
+              </svg>
+            </div>
+            <h2>拖动图片或视频到这里</h2>
+            <p>支持多文件：截图、微博图片、GIF 动图、MP4/WebM 视频和可识别视频的 .bin 文件。</p>
+            <button class="secondary" type="button" id="chooseButton">选择文件</button>
+          </div>
+
+          <div class="file-list" id="fileList" aria-live="polite"></div>
+
+          <div class="option-grid">
+            <label>
+              <span>推理模式</span>
+              <select name="mode" id="modeSelect">
+                <option value="cpu">CPU</option>
+                <option value="gpu" selected>GPU gpu:0</option>
+              </select>
+            </label>
+            <label>
+              <span>预处理版本</span>
+              <select name="variant_set">
+                <option value="minimal" selected>Minimal：原图 + CLAHE</option>
+                <option value="fast">Fast：4 个常用版本</option>
+                <option value="full">Full：8 个完整版本</option>
+              </select>
+            </label>
+            <label>
+              <span>平台标签</span>
+              <input name="platform" type="text" value="weibo_hotsearch" />
+            </label>
+            <label>
+              <span>最大视频帧数</span>
+              <input name="max_video_frames" type="number" min="1" max="64" value="32" />
+            </label>
+            <label>
+              <span>抽帧间隔（秒，可空）</span>
+              <input name="frame_interval" type="number" min="0.5" step="0.5" placeholder="自动" />
+            </label>
+            <label class="toggle-row">
+              <input name="enable_clip" type="checkbox" checked />
+              <span>启用 Chinese-CLIP 视觉分类</span>
+            </label>
+            <label>
+              <span>Chinese-CLIP 模型</span>
+              <input name="clip_model" type="text" value="OFA-Sys/chinese-clip-vit-base-patch16" />
+            </label>
+            <label class="toggle-row">
+              <input name="enable_caption" type="checkbox" checked />
+              <span>按分类生成一句话描述</span>
+            </label>
+            <label>
+              <span>Captioning 模型</span>
+              <input name="caption_model" type="text" value="Salesforce/blip-image-captioning-base" />
+            </label>
+            <fieldset class="regions">
+              <legend>视频帧区域</legend>
+              <label><input type="checkbox" name="frame_regions" value="full" checked /> 整帧</label>
+              <label><input type="checkbox" name="frame_regions" value="top" /> 顶部</label>
+              <label><input type="checkbox" name="frame_regions" value="center" /> 中部</label>
+              <label><input type="checkbox" name="frame_regions" value="bottom" checked /> 底部</label>
+            </fieldset>
+          </div>
+
+          <button class="primary" type="submit" id="runButton">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m5 3 14 9-14 9V3Z" />
+            </svg>
+            开始识别
+          </button>
+        </form>
+
+        <section class="panel results" aria-label="OCR 结果">
+          <div class="result-head">
+            <div>
+              <p class="eyebrow">识别结果</p>
+              <h2 id="resultTitle">等待输入文件</h2>
+            </div>
+            <button class="secondary" type="button" id="copyAllButton" disabled>复制压缩文本</button>
+          </div>
+
+          <div class="progress-wrap" id="progressWrap" hidden>
+            <div class="progress-meta">
+              <span id="progressLabel">正在处理</span>
+              <span id="progressValue">0%</span>
+            </div>
+            <div class="progress-track"><div id="progressBar"></div></div>
+          </div>
+
+          <div class="empty-state" id="emptyState">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 5a2 2 0 0 1 2-2h9l5 5v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5Z" />
+              <path d="M14 3v5h5" />
+              <path d="M8 13h8M8 17h5" />
+            </svg>
+            <p>上传文件后会显示压缩后 OCR 文本、置信度、最佳预处理版本和可视化结果。</p>
+          </div>
+
+          <div class="summary-grid" id="summaryGrid" hidden>
+            <article>
+              <span>文件数</span>
+              <strong id="metricFiles">0</strong>
+            </article>
+            <article>
+              <span>平均置信度</span>
+              <strong id="metricConfidence">-</strong>
+            </article>
+            <article>
+              <span>总字符数</span>
+              <strong id="metricChars">0</strong>
+            </article>
+            <article>
+              <span>需复核</span>
+              <strong id="metricReview">0</strong>
+            </article>
+          </div>
+
+          <div class="result-list" id="resultList"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="resultTemplate">
+      <article class="result-card">
+        <div class="result-card-head">
+          <div>
+            <h3></h3>
+            <p></p>
+          </div>
+          <span class="badge"></span>
+        </div>
+        <div class="quality-row"></div>
+        <div class="visual-panel">
+          <div class="visual-main">
+            <span>视觉类型</span>
+            <strong></strong>
+          </div>
+          <div class="visual-tags"></div>
+          <p class="visual-caption"></p>
+          <p class="visual-summary"></p>
+        </div>
+        <label class="compact-text">
+          <span>ocr_text_compact</span>
+          <textarea name="ocr_text_compact" readonly></textarea>
+        </label>
+        <div class="preview-strip"></div>
+      </article>
+    </template>
+
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
