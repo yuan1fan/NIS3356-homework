@@ -162,6 +162,34 @@ class NERDict:
 # 2. NER 提取器
 # ═══════════════════════════════════════════════════════════
 
+
+
+# ── BERT-NER (可选) ──
+_USE_BERT = False
+_bert_ner = None
+try:
+    import os as _os
+    _cache = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "_model_cache")
+    _md = _os.path.join(_cache, "models--ckiplab--bert-base-chinese-ner")
+    _sd = _os.path.join(_md, "snapshots")
+    _mp = None
+    if _os.path.exists(_sd):
+        for _d in _os.listdir(_sd):
+            _p = _os.path.join(_sd, _d)
+            if _os.path.exists(_os.path.join(_p, "config.json")):
+                _mp = _p
+                break
+    if _mp:
+        from transformers import AutoModelForTokenClassification as _AMFTC
+        from transformers import AutoTokenizer as _AT
+        from transformers import pipeline as _PL
+        _m = _AMFTC.from_pretrained(_mp)
+        _t = _AT.from_pretrained(_mp)
+        _bert_ner = _PL("token-classification", model=_m, tokenizer=_t, aggregation_strategy="simple")
+        _USE_BERT = True
+except Exception:
+    pass
+
 class NERExtractor:
     """基于词典 + 规则的命名实体识别器。"""
 
@@ -213,16 +241,29 @@ class NERExtractor:
     # ── 主识别方法 ──
 
     def recognize(self, text: str) -> List[Dict]:
-        """识别文本中的所有实体。
-
-        Returns
-        -------
-        List[Dict]: [{"text": str, "type": str, "start": int, "end": int}]
-        """
-        if not text or not text.strip():
-            return []
+        """识别文本中的所有实体。使用 BERT-NER 如可用，否则回退到 jieba。"""
 
         entities = []
+        try:
+            global _USE_BERT, _bert_ner
+            if _USE_BERT and _bert_ner is not None:
+                results = _bert_ner(text)
+                be = []
+                tm = {"PER":"人名","LOC":"地名","ORG":"机构名"}
+                for r in results:
+                    et = r.get("entity_group","")
+                    if et in tm:
+                        w = "".join(r["word"].split())
+                        if r.get("score",0) < 0.5:
+                            continue
+                        be.append({"text":w,"type":tm[et],"start":r.get("start",0),"end":r.get("end",0)})
+                if be:
+                    entities.extend(be)
+        except Exception:
+            pass
+
+        if not text or not text.strip():
+            return []
 
         # 依次识别各类实体
         entities.extend(self._extract_time(text))
@@ -290,81 +331,26 @@ class NERExtractor:
                 "end": match.end(),
             })
         return entities
+    def _extract_with_posseg(self, text):
+        import jieba.posseg as pseg
+        tm = {"nr":"人名","ns":"地名","nt":"机构名"}
+        ents = []
+        for _tok in pseg.cut(text):
+            w, f = _tok.word, _tok.flag
+            if f in tm:
+                pos = text.find(w)
+                if pos >= 0:
+                    ents.append({"text":w,"type":tm[f],"start":pos,"end":pos+len(w)})
+        return ents
 
-    def _extract_person(self, text: str) -> List[Dict]:
-        """识别人名：常见姓氏 + 2字名字，过滤常见噪词。"""
-        entities = []
-        surnames = self._dict.SURNAMES
-        sorted_surnames = sorted(surnames, key=len, reverse=True)
-        bl = set(["者","的","了","在","是","有","和","就","不",
-                  "人","都","一","上","也","很","到","说","要",
-                  "去","来","大","小","中","外","前","后","时",
-                  "间","公","开","被","把","将","让","给","对",
-                  "向","从","于","以","与","及","其","个","种",
-                  "行","为","做","成","作","用","化","品","方",
-                  "法","关","系","量","数","据","信","息",
-                  "文","化","教","育","科","学","经","济",
-                  "社","会","政","治","历","史","图"])
-        for surname in sorted_surnames:
-            idx = 0
-            while idx < len(text):
-                pos = text.find(surname, idx)
-                if pos == -1:
-                    break
-                rest = text[pos + len(surname):]
-                m = re.match(r"^([\u4e00-\u9fff]{2})", rest)
-                if m:
-                    g = m.group(1)
-                    if g[0] not in bl and g[1] not in bl:
-                        fn = surname + g
-                        entities.append({"text": fn, "type": "人名",
-                                         "start": pos, "end": pos + len(fn)})
-                        idx = pos + len(fn)
-                        continue
-                idx = pos + len(surname)
-        return entities
+    def _extract_person(self, text):
+        return [e for e in self._extract_with_posseg(text) if e["type"]=="人名"]
 
-    def _extract_place(self, text: str) -> List[Dict]:
-        """识别地名：省市区/国家 + 后缀。"""
-        entities = []
-        place_dict = {}
-        # 合并所有地名
-        for p in self._dict.PROVINCES: place_dict[p] = "省/直辖市"
-        for c in self._dict.CITIES: place_dict[c] = "市"
-        for c in self._dict.COUNTRIES: place_dict[c] = "国家"
+    def _extract_place(self, text):
+        return [e for e in self._extract_with_posseg(text) if e["type"]=="地名"]
 
-        # 按长度降序
-        sorted_places = sorted(place_dict.keys(), key=len, reverse=True)
-
-        for place in sorted_places:
-            idx = 0
-            while idx < len(text):
-                pos = text.find(place, idx)
-                if pos == -1:
-                    break
-                entities.append({
-                    "text": place,
-                    "type": "地名",
-                    "start": pos,
-                    "end": pos + len(place),
-                })
-                idx = pos + len(place)
-        return entities
-
-    def _extract_org(self, text: str) -> List[Dict]:
-        """识别机构名：前缀(可选) + 机构后缀。"""
-        entities = []
-        suffixes = sorted(self._dict.ORG_SUFFIXES, key=len, reverse=True)
-        escaped = [re.escape(s) for s in suffixes]
-        pattern = r"(?:[\u4e00-\u9fff]{2,6}(?:" + "|".join(escaped) + r"))"
-        for match in re.finditer(pattern, text):
-            entities.append({
-                "text": match.group(),
-                "type": "机构名",
-                "start": match.start(),
-                "end": match.end(),
-            })
-        return entities
+    def _extract_org(self, text):
+        return [e for e in self._extract_with_posseg(text) if e["type"]=="机构名"]
 
     def _extract_product(self, text: str) -> List[Dict]:
         """识别产品名：前缀(可选) + 产品后缀。"""
