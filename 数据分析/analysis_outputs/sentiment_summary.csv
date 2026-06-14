@@ -1,0 +1,13 @@
+﻿scope,category,sentiment,record_count,percentage_within_scope
+overall,全部,中性,44,88.0
+overall,全部,正面,4,8.0
+overall,全部,负面,2,4.0
+category,体育,中性,8,100.0
+category,其他,中性,10,76.92
+category,其他,正面,2,15.38
+category,其他,负面,1,7.69
+category,娱乐,中性,11,78.57
+category,娱乐,正面,2,14.29
+category,娱乐,负面,1,7.14
+category,生活,中性,5,100.0
+category,社会,中性,10,100.0

@@ -1,0 +1,318 @@
+{
+  "coverage": {
+    "parent_record_count": 50,
+    "counts": {
+      "merged_text_nonempty": 50,
+      "ocr_records": 49,
+      "visual_summary_records": 50,
+      "nlp_records": 50,
+      "asr_records": 0
+    },
+    "rates_percent": {
+      "ocr_records": 98.0,
+      "visual_summary_records": 100.0,
+      "nlp_records": 100.0,
+      "asr_records": 0.0
+    },
+    "media_totals": {
+      "images": 121,
+      "videos": 58,
+      "audios": 0
+    }
+  },
+  "hot_content": {
+    "category_counts": {
+      "娱乐": 14,
+      "其他": 13,
+      "社会": 10,
+      "体育": 8,
+      "生活": 5
+    },
+    "sentiment_counts": {
+      "中性": 44,
+      "正面": 4,
+      "负面": 2
+    },
+    "category_sentiment_counts": {
+      "体育": {
+        "中性": 8
+      },
+      "其他": {
+        "中性": 10,
+        "正面": 2,
+        "负面": 1
+      },
+      "娱乐": {
+        "中性": 11,
+        "正面": 2,
+        "负面": 1
+      },
+      "生活": {
+        "中性": 5
+      },
+      "社会": {
+        "中性": 10
+      }
+    },
+    "representative_topics": {
+      "娱乐": [
+        "白鹿方六连辟谣",
+        "鹿晗gapday音乐节",
+        "王安宇今天阿普瑞了",
+        "白鹿学历",
+        "陈立农这是干什么"
+      ],
+      "体育": [
+        "老外也疑惑中国为什么不参加世界杯",
+        "美团外卖赞助加纳队",
+        "孙兴慜状态",
+        "梅西首次回应慌得一批表情包",
+        "韩国2比1捷克"
+      ],
+      "社会": [
+        "网信办发布公约整治涉企侵权信息",
+        "第一次见丑得像人的狗",
+        "上海一幼儿园教师离世",
+        "教育局回应上海一幼儿园教师离世",
+        "幼师疑被家长和园方双重施压后离世"
+      ],
+      "生活": [
+        "上下嘴唇一碰差点把自己毒死",
+        "原来一个人身上真的会有气质",
+        "一个人租房住能有多省钱",
+        "贪吃狗被全校通缉",
+        "原来商家自己也知道货不对板"
+      ],
+      "其他": [
+        "歌手补位",
+        "影石对大疆发起反诉",
+        "日本炸鸡店一锅油反复用66年",
+        "国产TOP5厂商全员跟进方形前摄",
+        "女子投资黄金一度浮盈30万现倒亏20万"
+      ]
+    }
+  },
+  "engagement": {
+    "metrics_available": true,
+    "metric_distributions": {
+      "attitudes_count": {
+        "available": true,
+        "count": 50,
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "median": 0.0,
+        "total": 0.0
+      },
+      "comments_count": {
+        "available": true,
+        "count": 50,
+        "minimum": 0.0,
+        "maximum": 1.0,
+        "average": 0.02,
+        "median": 0.0,
+        "total": 1.0
+      },
+      "reposts_count": {
+        "available": true,
+        "count": 50,
+        "minimum": 0.0,
+        "maximum": 32.0,
+        "average": 1.0,
+        "median": 0.0,
+        "total": 50.0
+      },
+      "engagement_score": {
+        "available": true,
+        "count": 50,
+        "minimum": 0.0,
+        "maximum": 96.0,
+        "average": 3.04,
+        "median": 0.0,
+        "total": 152.0
+      }
+    },
+    "missing_record_counts": {
+      "attitudes_count": 0,
+      "comments_count": 0,
+      "reposts_count": 0,
+      "engagement_score": 0
+    },
+    "category_engagement": {
+      "体育": {
+        "available": true,
+        "count": 8,
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "median": 0.0,
+        "total": 0.0
+      },
+      "其他": {
+        "available": true,
+        "count": 13,
+        "minimum": 0.0,
+        "maximum": 6.0,
+        "average": 0.6923,
+        "median": 0.0,
+        "total": 9.0
+      },
+      "娱乐": {
+        "available": true,
+        "count": 14,
+        "minimum": 0.0,
+        "maximum": 96.0,
+        "average": 8.7857,
+        "median": 0.0,
+        "total": 123.0
+      },
+      "生活": {
+        "available": true,
+        "count": 5,
+        "minimum": 0.0,
+        "maximum": 12.0,
+        "average": 2.8,
+        "median": 0.0,
+        "total": 14.0
+      },
+      "社会": {
+        "available": true,
+        "count": 10,
+        "minimum": 0.0,
+        "maximum": 3.0,
+        "average": 0.6,
+        "median": 0.0,
+        "total": 6.0
+      }
+    },
+    "media_group_engagement": {
+      "with_media": {
+        "available": true,
+        "count": 50,
+        "minimum": 0.0,
+        "maximum": 96.0,
+        "average": 3.04,
+        "median": 0.0,
+        "total": 152.0
+      },
+      "without_media": {
+        "available": false,
+        "count": 0,
+        "minimum": null,
+        "maximum": null,
+        "average": null,
+        "median": null,
+        "total": null
+      }
+    },
+    "media_count_engagement": {
+      "1": {
+        "available": true,
+        "count": 1,
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "median": 0.0,
+        "total": 0.0
+      },
+      "2": {
+        "available": true,
+        "count": 17,
+        "minimum": 0.0,
+        "maximum": 12.0,
+        "average": 1.5882,
+        "median": 0.0,
+        "total": 27.0
+      },
+      "3": {
+        "available": true,
+        "count": 16,
+        "minimum": 0.0,
+        "maximum": 0.0,
+        "average": 0.0,
+        "median": 0.0,
+        "total": 0.0
+      },
+      "6": {
+        "available": true,
+        "count": 16,
+        "minimum": 0.0,
+        "maximum": 96.0,
+        "average": 7.8125,
+        "median": 0.0,
+        "total": 125.0
+      }
+    },
+    "media_count_engagement_pearson": 0.2199
+  },
+  "multimodal": {
+    "ocr_nonempty_records": 49,
+    "ocr_empty_records": 1,
+    "visual_summary_nonempty_records": 50,
+    "visual_summary_empty_records": 0,
+    "added_text_length": {
+      "available": true,
+      "count": 50,
+      "minimum": 71,
+      "maximum": 3005,
+      "average": 832.7,
+      "median": 700.0,
+      "total": 41635
+    },
+    "representative_samples": [
+      {
+        "record_index": 43,
+        "topic": "魅族前高管质疑苹果搞不懂AI",
+        "raw_post_text_length": 190,
+        "ocr_text_count": 1,
+        "visual_summary_count": 1,
+        "multimodal_added_length": 3005,
+        "merged_text_length": 3199
+      },
+      {
+        "record_index": 1,
+        "topic": "白鹿方六连辟谣",
+        "raw_post_text_length": 155,
+        "ocr_text_count": 5,
+        "visual_summary_count": 6,
+        "multimodal_added_length": 2632,
+        "merged_text_length": 2809
+      },
+      {
+        "record_index": 26,
+        "topic": "于正感慨",
+        "raw_post_text_length": 155,
+        "ocr_text_count": 5,
+        "visual_summary_count": 6,
+        "multimodal_added_length": 2632,
+        "merged_text_length": 2809
+      },
+      {
+        "record_index": 15,
+        "topic": "陈立农这是干什么",
+        "raw_post_text_length": 47,
+        "ocr_text_count": 6,
+        "visual_summary_count": 6,
+        "multimodal_added_length": 2453,
+        "merged_text_length": 2520
+      },
+      {
+        "record_index": 32,
+        "topic": "央视曝养生馆围猎老年人",
+        "raw_post_text_length": 458,
+        "ocr_text_count": 2,
+        "visual_summary_count": 2,
+        "multimodal_added_length": 1799,
+        "merged_text_length": 2265
+      }
+    ]
+  },
+  "trends": {
+    "status": "insufficient_batches",
+    "batch_count": 1,
+    "records_by_batch": {
+      "20260612_141245": 50
+    },
+    "message": "当前仅支持单批次热点统计；趋势分析和预测需要多个 crawl_run_id。"
+  }
+}

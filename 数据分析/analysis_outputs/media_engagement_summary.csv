@@ -1,0 +1,7 @@
+﻿comparison_type,group,available,count,minimum,maximum,average,median,total
+media_presence,with_media,True,50,0.0,96.0,3.04,0.0,152.0
+media_presence,without_media,False,0,,,,,
+media_count,1,True,1,0.0,0.0,0.0,0.0,0.0
+media_count,2,True,17,0.0,12.0,1.5882,0.0,27.0
+media_count,3,True,16,0.0,0.0,0.0,0.0,0.0
+media_count,6,True,16,0.0,96.0,7.8125,0.0,125.0
