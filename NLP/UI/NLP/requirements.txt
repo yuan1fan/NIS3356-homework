@@ -1,0 +1,10 @@
+﻿gradio>=5.0.0
+jieba>=0.42.0
+opencc-python-reimplemented>=0.1.7
+
+# Optional for LLM mode:
+# openai>=1.0.0
+
+# For BERT-NER (optional):
+# torch>=2.0.0
+# transformers>=4.30.0
