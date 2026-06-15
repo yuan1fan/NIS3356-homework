@@ -1,4 +1,4 @@
-﻿"""
+"""
 NLP 命名实体识别模块 — 基于词典 + 规则的传统方法
 
 从零实现，使用词典匹配和正则规则识别中文文本中的实体：
@@ -164,10 +164,13 @@ class NERDict:
 
 
 
-# ── BERT-NER (可选) ──
-_USE_BERT = False
-_bert_ner = None
-try:
+# ── BERT-NER (可选, 懒加载) ──
+_BERT_NER_CACHE = None
+
+def _get_bert_ner():
+    global _BERT_NER_CACHE
+    if _BERT_NER_CACHE is not None:
+        return _BERT_NER_CACHE if _BERT_NER_CACHE is not False else None
     import os as _os
     _cache = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "_model_cache")
     _md = _os.path.join(_cache, "models--ckiplab--bert-base-chinese-ner")
@@ -180,15 +183,18 @@ try:
                 _mp = _p
                 break
     if _mp:
-        from transformers import AutoModelForTokenClassification as _AMFTC
-        from transformers import AutoTokenizer as _AT
-        from transformers import pipeline as _PL
-        _m = _AMFTC.from_pretrained(_mp)
-        _t = _AT.from_pretrained(_mp)
-        _bert_ner = _PL("token-classification", model=_m, tokenizer=_t, aggregation_strategy="simple")
-        _USE_BERT = True
-except Exception:
-    pass
+        try:
+            from transformers import AutoModelForTokenClassification as _AMFTC
+            from transformers import AutoTokenizer as _AT
+            from transformers import pipeline as _PL
+            _m = _AMFTC.from_pretrained(_mp)
+            _t = _AT.from_pretrained(_mp)
+            _BERT_NER_CACHE = _PL("token-classification", model=_m, tokenizer=_t, aggregation_strategy="simple")
+        except Exception:
+            _BERT_NER_CACHE = False
+    else:
+        _BERT_NER_CACHE = False
+    return _BERT_NER_CACHE if _BERT_NER_CACHE is not False else None
 
 class NERExtractor:
     """基于词典 + 规则的命名实体识别器。"""
@@ -245,9 +251,9 @@ class NERExtractor:
 
         entities = []
         try:
-            global _USE_BERT, _bert_ner
-            if _USE_BERT and _bert_ner is not None:
-                results = _bert_ner(text)
+            bert_ner = _get_bert_ner()
+            if bert_ner is not None:
+                results = bert_ner(text)
                 be = []
                 tm = {"PER":"人名","LOC":"地名","ORG":"机构名"}
                 for r in results:
