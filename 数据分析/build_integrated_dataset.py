@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path, PurePosixPath
 from statistics import mean
 from typing import Any
@@ -11,6 +12,39 @@ from typing import Any
 
 MODULE_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT_DIR = MODULE_DIR / "integrated_outputs"
+EXPECTED_MODALITIES = ("text", "nlp", "ocr", "vision", "asr")
+MODALITY_WEIGHTS = {
+    "text": 0.25,
+    "nlp": 0.25,
+    "ocr": 0.20,
+    "vision": 0.20,
+    "asr": 0.10,
+}
+CROSS_MODAL_MIN_TEXT_LENGTH = 10
+CROSS_MODAL_CONSISTENT_THRESHOLD = 0.35
+CROSS_MODAL_PARTIAL_THRESHOLD = 0.08
+CROSS_MODAL_TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9]+")
+VISION_DESCRIPTION_MARKERS = {
+    "图片",
+    "照片",
+    "画面",
+    "场景",
+    "人物",
+    "标签",
+    "视觉",
+    "媒体",
+    "文字",
+    "新闻",
+    "娱乐",
+    "明星",
+    "事故",
+    "现场",
+    "描述",
+    "image",
+    "photo",
+    "person",
+    "scene",
+}
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -302,6 +336,294 @@ def finalize_records(parents: list[dict[str, Any]]) -> None:
         parent["merged_text"] = "\n\n".join(merged_parts)
 
 
+def nonempty_texts(values: Any) -> list[str]:
+    """Return stripped, non-empty strings from a list-like value."""
+    if not isinstance(values, list):
+        return []
+    return [
+        value.strip()
+        for value in values
+        if isinstance(value, str) and value.strip()
+    ]
+
+
+def combine_text_sources(sources: list[tuple[str, str]]) -> tuple[str, list[str]]:
+    """Combine named text sources in order while removing exact duplicates."""
+    combined_parts: list[str] = []
+    included_sources: list[str] = []
+    seen: set[str] = set()
+    for source_name, source_text in sources:
+        source_parts = []
+        for part in source_text.split("\n\n"):
+            text = part.strip()
+            if text and text not in seen:
+                source_parts.append(text)
+                seen.add(text)
+        if source_parts:
+            combined_parts.extend(source_parts)
+            included_sources.append(source_name)
+    return "\n\n".join(combined_parts), included_sources
+
+
+def text_feature_set(text: str) -> set[str]:
+    """Extract simple Chinese characters and lowercase ASCII tokens."""
+    return {
+        token.lower()
+        for token in CROSS_MODAL_TOKEN_RE.findall(text)
+        if token.strip()
+    }
+
+
+def jaccard_overlap(first_text: str, second_text: str) -> float:
+    """Calculate an explainable set-based text overlap score."""
+    first = text_feature_set(first_text)
+    second = text_feature_set(second_text)
+    union = first | second
+    if not union:
+        return 0.0
+    return round(len(first & second) / len(union), 2)
+
+
+def build_cross_modal_analysis(
+    post_text: str,
+    ocr_text: str,
+    vision_summary: str,
+) -> dict[str, Any]:
+    """Build lightweight cross-modal complement and consistency indicators."""
+    text_ocr_overlap = jaccard_overlap(post_text, ocr_text)
+    text_vision_overlap = jaccard_overlap(post_text, vision_summary)
+
+    post_features = text_feature_set(post_text)
+    ocr_features = text_feature_set(ocr_text)
+    vision_features = text_feature_set(vision_summary)
+    ocr_new_features = ocr_features - post_features
+    vision_new_features = vision_features - post_features
+
+    ocr_adds_information = (
+        len(ocr_text.strip()) >= CROSS_MODAL_MIN_TEXT_LENGTH
+        and text_ocr_overlap < 0.85
+        and len(ocr_new_features) >= 3
+    )
+    vision_lower = vision_summary.lower()
+    has_visual_description = any(
+        marker in vision_lower for marker in VISION_DESCRIPTION_MARKERS
+    )
+    vision_adds_information = (
+        len(vision_summary.strip()) >= CROSS_MODAL_MIN_TEXT_LENGTH
+        and has_visual_description
+        and len(vision_new_features) >= 3
+    )
+
+    side_scores = []
+    if ocr_text.strip():
+        side_scores.append(text_ocr_overlap)
+    if vision_summary.strip():
+        side_scores.append(text_vision_overlap)
+    if not side_scores:
+        modal_consistency = "unknown"
+    elif max(side_scores) >= CROSS_MODAL_CONSISTENT_THRESHOLD:
+        modal_consistency = "consistent"
+    elif max(side_scores) >= CROSS_MODAL_PARTIAL_THRESHOLD:
+        modal_consistency = "partial"
+    else:
+        modal_consistency = "weak"
+
+    extra_sources = []
+    notes = []
+    if ocr_adds_information:
+        extra_sources.append("ocr")
+        notes.append("OCR提供了正文之外的图片文字信息")
+    if vision_adds_information:
+        extra_sources.append("vision")
+        notes.append("视觉语义提供了场景、人物或类别信息")
+    if modal_consistency == "consistent":
+        notes.append("图像侧信息与微博正文具有较高的粗略重合度")
+    elif modal_consistency == "partial":
+        notes.append("图像侧信息与正文部分相关，同时包含补充信息")
+    elif modal_consistency == "weak":
+        notes.append("图像侧信息与正文粗略重合度较低，建议结合原媒体查看")
+    else:
+        notes.append("缺少图像侧文本信息，暂无法判断一致性")
+
+    return {
+        "ocr_adds_information": ocr_adds_information,
+        "vision_adds_information": vision_adds_information,
+        "text_ocr_overlap_score": text_ocr_overlap,
+        "text_vision_overlap_score": text_vision_overlap,
+        "modal_consistency": modal_consistency,
+        "extra_information_sources": extra_sources,
+        "analysis_notes": notes,
+    }
+
+
+def percentile(values: list[float], quantile: float) -> float | None:
+    """Return a linearly interpolated percentile for finite numeric values."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * quantile
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(ordered) - 1)
+    fraction = position - lower_index
+    return (
+        ordered[lower_index]
+        + (ordered[upper_index] - ordered[lower_index]) * fraction
+    )
+
+
+def build_batch_stats(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Calculate batch-level values needed by record enrichment."""
+    engagement_values = []
+    for record in records:
+        metrics = record.get("metrics")
+        if not isinstance(metrics, dict):
+            continue
+        engagement = metrics.get("engagement_score")
+        if isinstance(engagement, (int, float)) and not isinstance(
+            engagement, bool
+        ):
+            engagement_values.append(float(engagement))
+    return {
+        "engagement_p75": percentile(engagement_values, 0.75),
+        "engagement_value_count": len(engagement_values),
+    }
+
+
+def enrich_multimodal_fields(
+    record: dict[str, Any],
+    batch_stats: dict[str, Any] | None = None,
+) -> None:
+    """Add multimodal fusion metadata without changing existing fields."""
+    raw_post_text = (
+        record.get("raw_post_text").strip()
+        if isinstance(record.get("raw_post_text"), str)
+        else ""
+    )
+    ocr_texts = nonempty_texts(record.get("ocr_texts"))
+    vision_texts = nonempty_texts(record.get("visual_summaries"))
+    asr_texts = nonempty_texts(record.get("asr_texts"))
+    nlp_result = record.get("nlp_result")
+
+    modality_presence = {
+        "text": bool(raw_post_text),
+        "nlp": isinstance(nlp_result, dict) and bool(nlp_result),
+        "ocr": bool(ocr_texts),
+        "vision": bool(vision_texts),
+        "asr": bool(asr_texts),
+    }
+    available_modalities = [
+        modality
+        for modality in EXPECTED_MODALITIES
+        if modality_presence[modality]
+    ]
+    record["available_modalities"] = available_modalities
+    record["missing_modalities"] = [
+        modality
+        for modality in EXPECTED_MODALITIES
+        if not modality_presence[modality]
+    ]
+    record["multimodal_score"] = round(
+        sum(MODALITY_WEIGHTS[item] for item in available_modalities),
+        2,
+    )
+
+    ocr_text = "\n\n".join(ocr_texts)
+    vision_summary = "\n\n".join(vision_texts)
+    asr_text = "\n\n".join(asr_texts)
+    combined_text, included_sources = combine_text_sources(
+        [
+            ("post_text", raw_post_text),
+            ("ocr", ocr_text),
+            ("vision", vision_summary),
+            ("asr", asr_text),
+        ]
+    )
+    record["fused_text"] = {
+        "post_text": raw_post_text,
+        "ocr_text": ocr_text,
+        "vision_summary": vision_summary,
+        "asr_text": asr_text,
+        "combined_text": combined_text,
+        "sources": included_sources,
+    }
+    cross_modal_analysis = build_cross_modal_analysis(
+        raw_post_text,
+        ocr_text,
+        vision_summary,
+    )
+    record["cross_modal_analysis"] = cross_modal_analysis
+
+    metrics = record.get("metrics")
+    engagement = (
+        metrics.get("engagement_score")
+        if isinstance(metrics, dict)
+        else None
+    )
+    engagement_threshold = (
+        batch_stats.get("engagement_p75")
+        if isinstance(batch_stats, dict)
+        else None
+    )
+    high_interaction = (
+        isinstance(engagement, (int, float))
+        and not isinstance(engagement, bool)
+        and isinstance(engagement_threshold, (int, float))
+        and float(engagement) > float(engagement_threshold)
+    )
+
+    sentiment_label = ""
+    if isinstance(nlp_result, dict):
+        sentiment = nlp_result.get("sentiment")
+        if isinstance(sentiment, dict):
+            label = sentiment.get("label")
+            if isinstance(label, str):
+                sentiment_label = label.strip().lower()
+        elif isinstance(sentiment, str):
+            sentiment_label = sentiment.strip().lower()
+    has_negative_sentiment = sentiment_label in {
+        "negative",
+        "负面",
+        "消极",
+    }
+    has_multimodal_evidence = bool(ocr_texts or vision_texts or asr_texts)
+    short_text_with_extra_modalities = (
+        len(raw_post_text) <= 30 and bool(ocr_texts or vision_texts)
+    )
+
+    review_reasons = []
+    if high_interaction and has_negative_sentiment:
+        review_reasons.append("high_interaction_with_negative_sentiment")
+    if short_text_with_extra_modalities:
+        review_reasons.append("short_text_with_ocr_or_vision")
+    weak_with_attention_signal = (
+        cross_modal_analysis["modal_consistency"] == "weak"
+        and (high_interaction or has_negative_sentiment)
+    )
+    if weak_with_attention_signal:
+        review_reasons.append("weak_cross_modal_consistency")
+    record["safety_indicators"] = {
+        "high_interaction": high_interaction,
+        "has_negative_sentiment": has_negative_sentiment,
+        "has_multimodal_evidence": has_multimodal_evidence,
+        "has_cross_modal_extra_info": bool(
+            cross_modal_analysis["extra_information_sources"]
+        ),
+        "short_text_with_extra_modalities": short_text_with_extra_modalities,
+        "needs_review": bool(review_reasons),
+        "review_reasons": review_reasons,
+    }
+
+
+def enrich_records(parents: list[dict[str, Any]]) -> dict[str, Any]:
+    """Enrich all records using shared batch-level statistics."""
+    batch_stats = build_batch_stats(parents)
+    for parent in parents:
+        enrich_multimodal_fields(parent, batch_stats)
+    return batch_stats
+
+
 def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     """Write UTF-8 JSONL."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -315,6 +637,7 @@ def write_report(
     parents: list[dict[str, Any]],
     image_stats: dict[str, Any],
     nlp_stats: dict[str, Any],
+    batch_stats: dict[str, Any],
 ) -> None:
     """Write a concise integration validation report."""
     parent_ids = [parent["parent_document_id"] for parent in parents]
@@ -332,6 +655,20 @@ def write_report(
     total_visual_summaries = sum(
         len(parent["visual_summaries"]) for parent in parents
     )
+    review_count = sum(
+        (parent.get("safety_indicators") or {}).get("needs_review") is True
+        for parent in parents
+    )
+    consistency_counts = {
+        name: sum(
+            (parent.get("cross_modal_analysis") or {}).get(
+                "modal_consistency"
+            )
+            == name
+            for parent in parents
+        )
+        for name in ("consistent", "partial", "weak", "unknown")
+    }
 
     report = f"""# 多模块整合数据构建报告
 
@@ -362,6 +699,16 @@ def write_report(
 - NLP 对齐失败：{nlp_stats['failed_count']}
 - ASR 当前缺失，但所有记录均预留 `asr_texts: []` 和 `asr_count: 0`。
 - ASR 缺失不会中断整合流程。
+
+## 多模态融合字段
+
+- 每条记录均新增 `available_modalities`、`missing_modalities`、
+  `multimodal_score`、`fused_text`、`safety_indicators` 和
+  `cross_modal_analysis`。
+- 互动量 75 分位阈值：{batch_stats['engagement_p75']}
+- PRE 阶段建议关注记录数：{review_count}
+- `needs_review` 仅表示候选关注，不代表最终内容安全判定。
+- 跨模态一致性分布：{json.dumps(consistency_counts, ensure_ascii=False)}
 
 ## 校验结论
 
@@ -420,11 +767,12 @@ def main() -> None:
     image_stats = attach_image_results(parents, media_to_parent, image_rows)
     nlp_stats = attach_nlp_results(parents, nlp_rows)
     finalize_records(parents)
+    batch_stats = enrich_records(parents)
 
     output_path = args.output_dir / "integrated_records.jsonl"
     report_path = args.output_dir / "integration_build_report.md"
     write_jsonl(output_path, parents)
-    write_report(report_path, parents, image_stats, nlp_stats)
+    write_report(report_path, parents, image_stats, nlp_stats, batch_stats)
 
     print(f"Parent records: {len(parents)}")
     print(

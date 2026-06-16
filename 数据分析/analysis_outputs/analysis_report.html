@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>多模态数据融合与分析报告</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Microsoft YaHei", Arial, sans-serif;
+      color: #243247; background: #f4f7fb; }
+    main { max-width: 1280px; margin: 0 auto; padding: 36px; }
+    h1 { margin: 0 0 8px; font-size: 32px; }
+    h2 { margin-top: 36px; font-size: 22px; }
+    .subtitle { color: #637083; margin-bottom: 28px; }
+    .cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+    .card, .panel { background: white; border-radius: 12px;
+      box-shadow: 0 3px 14px rgba(31, 50, 80, .08); }
+    .card { padding: 20px; border-top: 4px solid #3976c6; }
+    .card strong { display: block; font-size: 25px; margin-top: 8px; }
+    .card span { color: #6a7688; font-size: 13px; }
+    .charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+    .panel { padding: 18px; }
+    .panel img { display: block; width: 100%; height: auto; }
+    .fusion-example { display: grid; grid-template-columns: 1.2fr .8fr;
+      gap: 18px; }
+    .fusion-column { background: white; border-radius: 12px; padding: 22px;
+      box-shadow: 0 3px 14px rgba(31, 50, 80, .08); }
+    .fusion-column h3 { margin: 0 0 16px; color: #315f9d; }
+    .source-card { background: #f7f9fc; border-left: 4px solid #3976c6;
+      border-radius: 7px; padding: 13px 15px; margin-bottom: 12px; }
+    .source-card strong { display: block; margin-bottom: 6px; }
+    .source-card p { margin: 0; line-height: 1.65; color: #46556a; }
+    .nlp-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .nlp-row span { background: #edf5ff; border-radius: 7px; padding: 8px 10px; }
+    .nlp-row b { margin-right: 6px; color: #315f9d; }
+    .fusion-meta { display: grid; gap: 13px; }
+    .meta-item { border-bottom: 1px solid #e6ebf1; padding-bottom: 11px; }
+    .meta-item strong { display: block; color: #667489; margin-bottom: 7px;
+      font-size: 13px; }
+    .score { font-size: 32px; color: #2b8b68; font-weight: bold; }
+    .case-score { font-size: 25px; }
+    .tag { display: inline-block; background: #e8f0fb; color: #315f9d;
+      border-radius: 999px; padding: 5px 9px; margin: 2px 5px 2px 0;
+      font-size: 12px; }
+    .tag.missing { background: #f0f1f4; color: #687385; }
+    .tag.review { background: #fff0e8; color: #b75c38; }
+    .muted { color: #8993a2; }
+    .fusion-note { margin-top: 18px; padding: 15px 18px; background: #edf7f3;
+      border-left: 5px solid #32a47b; border-radius: 8px; line-height: 1.7; }
+    .cross-cards { display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 14px; margin-bottom: 18px; }
+    .cross-card { background: white; border-radius: 10px; padding: 17px;
+      border-left: 4px solid #7656b2;
+      box-shadow: 0 3px 14px rgba(31, 50, 80, .08); }
+    .cross-card span { color: #69768a; font-size: 13px; }
+    .cross-card strong { display: block; font-size: 25px; margin-top: 7px; }
+    .cross-detail { background: #f7f4fc; border-radius: 8px; padding: 14px;
+      margin-top: 13px; line-height: 1.8; }
+    .case-example .source-card { border-left-color: #7656b2; }
+    .case-conclusion { background: #f5f1fb; border-left-color: #7656b2; }
+    .synthesis-box { margin-top: 15px; padding: 16px 18px;
+      background: #f3f7fd; border: 1px solid #d6e2f2;
+      border-left: 5px solid #3976c6; border-radius: 9px; }
+    .synthesis-box h4 { margin: 0 0 11px; color: #315f9d; font-size: 16px; }
+    .synthesis-item { margin: 8px 0; line-height: 1.65; color: #46556a; }
+    .synthesis-item strong { color: #283b55; margin-right: 5px; }
+    table { width: 100%; border-collapse: collapse; background: white;
+      box-shadow: 0 3px 14px rgba(31, 50, 80, .08); }
+    th, td { padding: 11px; border: 1px solid #dfe5ed; text-align: left;
+      vertical-align: top; font-size: 13px; }
+    th { background: #eaf1fb; }
+    .notice { padding: 18px 20px; background: #fff7e8;
+      border-left: 5px solid #e5a43d; border-radius: 8px; line-height: 1.7; }
+    @media (max-width: 900px) {
+      .cards, .charts, .fusion-example, .cross-cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>多模态数据融合与分析报告</h1>
+  <div class="subtitle">静态课程设计结果看板</div>
+  <section class="cards">
+    <div class="card"><span>记录数</span><strong>50</strong></div>
+    <div class="card"><span>平均完整度</span><strong>0.896</strong></div>
+    <div class="card"><span>已接入模态</span><strong>4</strong></div>
+    <div class="card"><span>候选关注内容</span><strong>7</strong></div>
+    <div class="card"><span>ASR 状态</span><strong>待接入</strong></div>
+  </section>
+
+  <h2>融合统计图表</h2>
+  <section class="charts">
+    <div class="panel"><img src="charts/modality_coverage.png" alt="模态覆盖率"></div>
+    <div class="panel"><img src="charts/multimodal_score_distribution.png" alt="完整度分布"></div>
+    <div class="panel"><img src="charts/review_candidates_summary.png" alt="候选关注内容"></div>
+    <div class="panel"><img src="charts/cross_modal_consistency_distribution.png" alt="跨模态一致性"></div>
+  </section>
+
+  <h2>跨模态补充与一致性分析</h2>
+  <section class="cross-cards">
+    <div class="cross-card"><span>OCR 补充信息</span>
+      <strong>48</strong></div>
+    <div class="cross-card"><span>视觉补充信息</span>
+      <strong>50</strong></div>
+    <div class="cross-card"><span>图文弱相关</span>
+      <strong>14</strong></div>
+    <div class="cross-card"><span>OCR 与视觉均补充</span>
+      <strong>48</strong></div>
+  </section>
+  <div class="notice">
+    该分析用于衡量图像侧信息对微博正文的补充价值和粗略一致性，不代表最终
+    风险判断。
+  </div>
+
+
+  <h2>跨模态分析案例：图像侧信息对正文的补充</h2>
+  <div class="subtitle">热搜词：央视曝养生馆围猎老年人　
+    post_id：5308969155298302</div>
+  <section class="fusion-example case-example">
+    <div class="fusion-column">
+      <h3>多模态证据</h3>
+      <div class="source-card"><strong>微博正文摘要</strong>
+        <p>央视报道北京多家养生馆以低价体验吸引老年人，再通过虚假诊断和
+        所谓排毒项目实施诈骗，警方已刑拘30余名嫌疑人。</p></div>
+      <div class="source-card"><strong>OCR 补充信息</strong>
+        <p>视频画面识别出央视新闻标识、养生项目价目表、护理项目价格，以及
+        “北京警方捣毁20余家套路养生馆”等新闻字幕。</p></div>
+      <div class="source-card"><strong>视觉语义补充</strong>
+        <p>媒体被识别为新闻报道和视频画面截图，视觉标签集中在社会民生、
+        财经消费、诈骗及违法犯罪等场景。</p></div>
+    </div>
+    <div class="fusion-column">
+      <h3>跨模态分析结果</h3>
+      <div class="fusion-meta">
+        <div class="meta-item"><strong>ocr_adds_information</strong>
+          <span class="tag">是</span></div>
+        <div class="meta-item"><strong>vision_adds_information</strong>
+          <span class="tag">是</span></div>
+        <div class="meta-item"><strong>text_ocr_overlap_score</strong>
+          <span class="score case-score">0.21</span></div>
+        <div class="meta-item"><strong>text_vision_overlap_score</strong>
+          <span class="score case-score">0.1</span></div>
+        <div class="meta-item"><strong>modal_consistency</strong>
+          <span class="tag">partial</span></div>
+        <div class="meta-item"><strong>extra_information_sources</strong>
+          <span class="tag ">ocr</span><span class="tag ">vision</span></div>
+      </div>
+      <div class="synthesis-box">
+        <h4>综合分析输出</h4>
+        <div class="synthesis-item"><strong>一致性判断：</strong>
+          正文、OCR 和视觉语义围绕“养生馆诈骗”同一事件展开，属于
+          partial，即主题相关但图像侧提供额外信息。</div>
+        <div class="synthesis-item"><strong>补充价值：</strong>
+          OCR 补充了新闻字幕、项目价目表和警方行动信息；视觉语义补充了
+          新闻报道、社会民生、诈骗违法场景。</div>
+        <div class="synthesis-item"><strong>后续用途：</strong>
+          该结果可作为内容安全候选分析中的证据组织结果，供人工核查或
+          后续模型进一步判断。</div>
+      </div>
+    </div>
+  </section>
+  <div class="fusion-note case-conclusion">
+    <strong>分析结论</strong><br>
+    正文描述养生馆诈骗事件，OCR 从视频画面中补充了新闻字幕、项目价目表和
+    警方行动信息，视觉语义进一步识别出新闻报道、社会民生和诈骗场景。
+    图像侧信息与正文主题部分一致，同时提供了正文之外的证据细节，因此该
+    样例体现了多模态分析相较单文本分析的补充价值。
+  </div>
+
+
+  <h2>单条微博多模态融合样例</h2>
+  <div class="subtitle">热搜词：刘耀文说心疼马嘉祺　
+    post_id：5308967137051181</div>
+  <section class="fusion-example">
+    <div class="fusion-column">
+      <h3>原始输入与模块输出</h3>
+      <div class="source-card"><strong>微博正文 · post_text</strong>
+        <p>#刘耀文说心疼马嘉祺# 综艺里的关心可以靠话术，但微表情骗不了人。看着哥哥一次次被水泼，刘耀文在旁边坐不住了，不是那种客套的安慰，是实打实的担心，时团这帮孩子的感情，全在这些没剪掉的细节里。#这是我的西游# ​</p></div>
+      <div class="source-card"><strong>OCR 识别文本 · ocr_text</strong>
+        <p>这是我的西游 意料之内 山野为营；快乐随行时代少年窗；贺峻霖；还玩吗继续呗 这是我的西游 雨林秘境时代少年回；这是我的西游；丁程鑫；看这边时代少年园；三二一看这边；第己李时代少年国；宋亚轩；马嘉祺；我很认真地在玩；苏醒；...</p></div>
+      <div class="source-card"><strong>视觉语义摘要 · vision_summary</strong>
+        <p>Chinese-CLIP 判断该媒体更接近“普通人物照片”，视觉语义标签偏向：娱乐明星、突发事故；文字较少或无可识别文字。 一句话视觉描述：a man with black hair Chinese-CLIP 判断该媒体...</p></div>
+      <div class="source-card"><strong>NLP 分析结果</strong>
+        <div class="nlp-row"><span><b>类别</b>其他</span><span><b>情感</b>负面</span><span><b>关键词</b>刘耀、文说、马嘉祺、关心、靠话术、但微</span></div></div>
+    </div>
+    <div class="fusion-column">
+      <h3>融合后的统一记录</h3>
+      <div class="fusion-meta">
+        <div class="meta-item"><strong>available_modalities</strong>
+          <span class="tag ">text</span><span class="tag ">nlp</span><span class="tag ">ocr</span><span class="tag ">vision</span></div>
+        <div class="meta-item"><strong>missing_modalities</strong>
+          <span class="tag missing">asr</span></div>
+        <div class="meta-item"><strong>multimodal_score</strong>
+          <span class="score">0.9</span></div>
+        <div class="meta-item"><strong>fused_text.sources</strong>
+          <span class="tag ">post_text</span><span class="tag ">ocr</span><span class="tag ">vision</span></div>
+        <div class="meta-item"><strong>候选关注标记 · needs_review</strong>
+          <span class="tag review">True</span></div>
+        <div class="meta-item"><strong>review_reasons</strong>
+          <span class="tag review">high_interaction_with_negative_sentiment</span></div>
+        <div class="cross-detail"><strong>跨模态分析</strong><br>
+          OCR补充信息：是<br>
+          视觉补充信息：是<br>
+          图文一致性：partial<br>
+          文本-OCR重合度：0.16<br>
+          文本-视觉重合度：0.05
+        </div>
+      </div>
+    </div>
+  </section>
+  <div class="fusion-note">
+    该记录将微博正文、OCR识别文本、视觉语义摘要和NLP分析结果统一关联到
+    同一条微博代表帖，并生成完整度评分和候选关注标记。
+  </div>
+
+  <h2>代表记录</h2>
+  <table>
+    <thead><tr>
+      <th>topic</th><th>post_id</th><th>available_modalities</th>
+      <th>missing_modalities</th><th>score</th><th>needs_review</th>
+      <th>review_reasons</th><th>融合文本预览</th>
+    </tr></thead>
+    <tbody><tr><td>鹿晗gapday音乐节</td><td>5308987190806948</td><td>text, nlp, ocr, vision</td><td>asr</td><td>0.9</td><td>True</td><td>short_text_with_ocr_or_vision</td><td>#鹿晗gapday音乐节#颤抖吧 我老公又要开音乐节了 ​  09  gqpday；apday  ANVHIOAV；Ry；Co；G5；GO；GS  Jay；不9A；220  GO；69；GS；G5  Chinese-CLIP 判断该媒体更接近“新闻现场照片”，视觉语义标签偏向：娱乐明星；含可识别文字。 一句话视觉描述：</td></tr><tr><td>王安宇今天阿普瑞了</td><td>5308756717998694</td><td>text, nlp, ocr, vision</td><td>asr</td><td>0.9</td><td>True</td><td>weak_cross_modal_consistency</td><td>#王安宇今天阿普瑞了##天猫超级发布##世界路人杯# 王安宇这套阿普瑞穿搭真的戳在我审美上！松弛高级又自在，运动休闲+精致感的平衡感拿捏得刚刚好，普通人通勤约会也能直接抄作业！🍑🔎“天猫超级发布”抢同款尖货，6.12-6.21去上海西岸梦中心玩世界路人杯，还有机会赢十万美加墨之旅！ ​  AOIDAS；OHIGINAL</td></tr><tr><td>白鹿学历</td><td>5308929581254740</td><td>text, nlp, ocr, vision</td><td>asr</td><td>0.9</td><td>True</td><td>weak_cross_modal_consistency</td><td>近日，网传针对白鹿（本名：白梦妍）女士的“学历造假、番位造假、程序违规申报三级演员”“与他人恋情”“要求更换编剧团队”“与江苏文投相关人员交往甚密”等相关信息均为诽谤。 针对网络上恶意编造、传播针对白鹿女士诽谤信息的涉嫌侵权行为，将依法严肃追究造谣、传谣主体的法律责任，绝不姑息任何侵犯白鹿女士合法权益的行为。 收起d </td></tr></tbody>
+  </table>
+
+  <h2>ASR 说明</h2>
+  <div class="notice">
+    当前 ASR 字段已在统一数据结构中预留，但该批次真实微博视频尚未完成批量
+    转写，因此 ASR 覆盖率为 0%。该缺失不会影响文本、OCR、视觉语义和 NLP
+    的现有融合流程。
+  </div>
+</main>
+</body>
+</html>

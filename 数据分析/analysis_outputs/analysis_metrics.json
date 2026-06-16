@@ -307,6 +307,153 @@
       }
     ]
   },
+  "fusion": {
+    "record_count": 50,
+    "crawl_run_ids": [
+      "20260612_141245"
+    ],
+    "modality_counts": {
+      "text": 50,
+      "nlp": 50,
+      "ocr": 49,
+      "vision": 50,
+      "asr": 0
+    },
+    "modality_rates_percent": {
+      "text": 100.0,
+      "nlp": 100.0,
+      "ocr": 98.0,
+      "vision": 100.0,
+      "asr": 0.0
+    },
+    "score_summary": {
+      "average": 0.896,
+      "minimum": 0.7,
+      "maximum": 0.9,
+      "distribution": {
+        "0.70": 1,
+        "0.90": 49
+      }
+    },
+    "fused_text_nonempty_records": 50,
+    "source_combinations": {
+      "post_text + ocr + vision": 49,
+      "post_text + vision": 1
+    },
+    "review_candidates": {
+      "needs_review": 7,
+      "not_needs_review": 43,
+      "reason_counts": {
+        "weak_cross_modal_consistency": 5,
+        "short_text_with_ocr_or_vision": 1,
+        "high_interaction_with_negative_sentiment": 1
+      },
+      "samples": [
+        {
+          "topic": "鹿晗gapday音乐节",
+          "post_id": "5308987190806948",
+          "available_modalities": [
+            "text",
+            "nlp",
+            "ocr",
+            "vision"
+          ],
+          "missing_modalities": [
+            "asr"
+          ],
+          "multimodal_score": 0.9,
+          "needs_review": true,
+          "review_reasons": [
+            "short_text_with_ocr_or_vision"
+          ],
+          "combined_text_preview": "#鹿晗gapday音乐节#颤抖吧 我老公又要开音乐节了 ​\n\n09\n\ngqpday；apday\n\nANVHIOAV；Ry；Co；G5；GO；GS\n\nJay；不9A；220\n\nGO；69；GS；G5\n\nChinese-CLIP 判断该媒体更接近“新闻现场照片”，视觉语义标签偏向：娱乐明星；含可识别文字。 一句话视觉描述：a man with red hair "
+        },
+        {
+          "topic": "王安宇今天阿普瑞了",
+          "post_id": "5308756717998694",
+          "available_modalities": [
+            "text",
+            "nlp",
+            "ocr",
+            "vision"
+          ],
+          "missing_modalities": [
+            "asr"
+          ],
+          "multimodal_score": 0.9,
+          "needs_review": true,
+          "review_reasons": [
+            "weak_cross_modal_consistency"
+          ],
+          "combined_text_preview": "#王安宇今天阿普瑞了##天猫超级发布##世界路人杯# 王安宇这套阿普瑞穿搭真的戳在我审美上！松弛高级又自在，运动休闲+精致感的平衡感拿捏得刚刚好，普通人通勤约会也能直接抄作业！🍑🔎“天猫超级发布”抢同款尖货，6.12-6.21去上海西岸梦中心玩世界路人杯，还有机会赢十万美加墨之旅！ ​\n\nAOIDAS；OHIGINALS\n\nginals；AIS\n\nTMALL"
+        },
+        {
+          "topic": "白鹿学历",
+          "post_id": "5308929581254740",
+          "available_modalities": [
+            "text",
+            "nlp",
+            "ocr",
+            "vision"
+          ],
+          "missing_modalities": [
+            "asr"
+          ],
+          "multimodal_score": 0.9,
+          "needs_review": true,
+          "review_reasons": [
+            "weak_cross_modal_consistency"
+          ],
+          "combined_text_preview": "近日，网传针对白鹿（本名：白梦妍）女士的“学历造假、番位造假、程序违规申报三级演员”“与他人恋情”“要求更换编剧团队”“与江苏文投相关人员交往甚密”等相关信息均为诽谤。 针对网络上恶意编造、传播针对白鹿女士诽谤信息的涉嫌侵权行为，将依法严肃追究造谣、传谣主体的法律责任，绝不姑息任何侵犯白鹿女士合法权益的行为。 收起d\n\n关于白梦妍（艺名：白鹿）女士名誉维权取"
+        }
+      ]
+    },
+    "cross_modal": {
+      "ocr_adds_information_records": 48,
+      "ocr_adds_information_percent": 96.0,
+      "vision_adds_information_records": 50,
+      "vision_adds_information_percent": 100.0,
+      "both_add_information_records": 48,
+      "consistency_counts": {
+        "consistent": 7,
+        "partial": 29,
+        "weak": 14,
+        "unknown": 0
+      },
+      "weak_samples": [
+        {
+          "topic": "鹿晗gapday音乐节",
+          "post_id": "5308987190806948",
+          "text_ocr_overlap_score": 0.0,
+          "text_vision_overlap_score": 0.02,
+          "extra_information_sources": [
+            "ocr",
+            "vision"
+          ]
+        },
+        {
+          "topic": "王安宇今天阿普瑞了",
+          "post_id": "5308756717998694",
+          "text_ocr_overlap_score": 0.06,
+          "text_vision_overlap_score": 0.01,
+          "extra_information_sources": [
+            "ocr",
+            "vision"
+          ]
+        },
+        {
+          "topic": "白鹿学历",
+          "post_id": "5308929581254740",
+          "text_ocr_overlap_score": 0.07,
+          "text_vision_overlap_score": 0.07,
+          "extra_information_sources": [
+            "ocr",
+            "vision"
+          ]
+        }
+      ]
+    }
+  },
   "trends": {
     "status": "insufficient_batches",
     "batch_count": 1,

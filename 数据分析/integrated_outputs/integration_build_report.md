@@ -28,6 +28,16 @@
 - ASR 当前缺失，但所有记录均预留 `asr_texts: []` 和 `asr_count: 0`。
 - ASR 缺失不会中断整合流程。
 
+## 多模态融合字段
+
+- 每条记录均新增 `available_modalities`、`missing_modalities`、
+  `multimodal_score`、`fused_text`、`safety_indicators` 和
+  `cross_modal_analysis`。
+- 互动量 75 分位阈值：0.0
+- PRE 阶段建议关注记录数：7
+- `needs_review` 仅表示候选关注，不代表最终内容安全判定。
+- 跨模态一致性分布：{"consistent": 7, "partial": 29, "weak": 14, "unknown": 0}
+
 ## 校验结论
 
 - 父键是否唯一：是

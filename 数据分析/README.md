@@ -64,10 +64,20 @@ python build_integrated_dataset.py `
 - `asr_texts`；
 - `nlp_result`；
 - `merged_text`；
+- `available_modalities`、`missing_modalities` 和 `multimodal_score`；
+- `fused_text`：按来源保存正文、OCR、视觉摘要、ASR 及融合文本；
+- `safety_indicators`：用于 PRE 阶段解释性筛选的候选关注标记；
+- `cross_modal_analysis`：OCR/视觉语义的补充价值、与正文的粗略重合度及
+  一致性辅助分析；
 - `media_info`、`metrics` 和 `quality`。
 
 `merged_text` 按微博正文、OCR、视觉语义摘要、ASR 的顺序合并，并避免
-重复加入完全相同的文本。
+重复加入完全相同的文本。该字段继续保留用于向后兼容；`fused_text` 在此
+基础上进一步记录实际参与融合的文本来源。
+
+`multimodal_score` 只表示正文、NLP、OCR、视觉语义和 ASR 的信息完整度，
+不表示内容安全风险。`safety_indicators.needs_review` 仅表示建议重点关注，
+不是最终安全判定。
 
 ## 第二步：运行初步分析
 
@@ -88,6 +98,17 @@ python analyze_integrated_dataset.py `
 - `analysis_outputs/multimodal_coverage_summary.csv`：OCR、视觉语义覆盖及
   文本增量；
 - `analysis_outputs/analysis_metrics.json`：全部分析指标和趋势检测状态。
+- `analysis_outputs/multimodal_fusion_report.md`：多模态完整度、融合来源和
+  候选关注内容的课程展示报告；
+- `analysis_outputs/analysis_report.html`：适合浏览和截图的静态分析看板；
+- `analysis_outputs/record_browser.html`：内嵌全部统一记录的静态结果浏览器，
+  可从左侧切换微博并查看多模态证据、融合结果和候选分析；
+- `analysis_outputs/record_browser_tabs.html`：标签页版静态结果浏览器，
+  用于课堂演示和 PPT 截图，包含总览、多模态证据、融合结果、跨模态分析
+  和原始文本；
+- `analysis_outputs/charts/`：模态覆盖率、完整度分布和候选关注内容统计图。
+  其中还包括 `cross_modal_consistency_distribution.png`，用于展示
+  `consistent`、`partial`、`weak`、`unknown` 的记录分布。
 
 当前分析包括：
 
@@ -96,11 +117,25 @@ python analyze_integrated_dataset.py `
 - 点赞、评论、转发、加权互动量的描述统计；
 - 不同类别和不同媒体分组的互动量比较；
 - OCR 与视觉摘要对合并文本的增量统计；
+- OCR/视觉语义是否补充正文信息，以及图像侧信息与正文的粗略一致性；
 - 从数据中自动抽取的多模态代表样例。
 
 所有报告结论均由 `analyze_integrated_dataset.py` 从
 `integrated_records.jsonl` 自动计算。脚本不调用大模型 API，也不依赖人工
 填写分析数字。
+
+静态图表使用本地 `matplotlib` 生成。`analysis_report.html` 不使用
+JavaScript、外部 CDN 或网络资源，图像通过相对路径引用
+`analysis_outputs/charts/`。
+
+结果浏览器可单独生成：
+
+```powershell
+python generate_record_browser.py
+python generate_record_browser.py --layout tabs
+```
+
+结果浏览器页面使用内嵌原生 JavaScript 完成记录切换，不需要启动后端服务。
 
 ## 统一接口原则
 
